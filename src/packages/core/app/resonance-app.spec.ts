@@ -1,93 +1,27 @@
-import { Injectable } from '../di/injectable';
-import { NcModule } from '../di/module';
+import { concatMap } from 'rxjs';
+import { AppModule } from '../test/app.module';
+import { Resonance } from './resonance-app';
 
-@Injectable()
-export class LightsaberService {
-    constructor() {}
-
-    public activate() {}
-
-    public deactivate() {}
-}
-
-@Injectable()
-export class Blaster {
-    constructor() {}
-
-    public shoot() {}
-}
-
-@NcModule({
-    baseURL: '',
-    declarations: [LightsaberService, Blaster],
-    exports: [LightsaberService, Blaster],
-})
-export class WeaponsModule {}
-
-@Injectable()
-export class TheForceService {
-    constructor() {}
-
-    public push() {}
-
-    public pull() {}
-}
-
-export interface Jedi {
-    name: string;
-    height: string;
-    age: number;
-    saberColor: 'blue' | 'green' | 'purple' | 'white';
-}
-
-@Injectable()
-export class JediService {
-    private _jedi: Jedi[] = [];
-
-    constructor(private _forceService: TheForceService) {}
-
-    public addJedi(
-        name: string,
-        height: string,
-        age: number,
-        saberColor: 'blue' | 'green' | 'purple' | 'white'
-    ) {
-        this._jedi.push({
-            name,
-            height,
-            age,
-            saberColor,
+describe('Resonance app compiler', () => {
+    test('Should bootstrap Resonance app.', (done) => {
+        const app = new Resonance({
+            port: 3002,
         });
-    }
 
-    public removeJedi(name: string) {
-        const index = this._jedi.findIndex((jedi) => jedi.name === name);
-
-        if (index !== undefined) {
-            this._jedi.splice(index, 1);
-        }
-    }
-}
-
-@Injectable()
-export class SithService {
-    constructor(private _forceService: TheForceService) {}
-}
-
-@NcModule({
-    baseURL: 'force-user',
-    declarations: [TheForceService, JediService, SithService],
-    exports: [JediService, SithService],
-    imports: [WeaponsModule],
-})
-export class ForceUserModule {}
-
-@Injectable()
-export class AppService {}
-
-// @NcModule({
-//     baseURL: 'api',
-//     declarations: [AppService],
-
-// })
-describe('Resonance app compiler', () => {});
+        app.boostrap(AppModule)
+            .pipe(
+                concatMap((val) => {
+                    expect(val.startsWith('Resonance is listening')).toEqual(
+                        true
+                    );
+                    return app.exit();
+                })
+            )
+            .subscribe({
+                next: (val) => {
+                    expect(val.startsWith('Resonance exited')).toEqual(true);
+                    done();
+                },
+            });
+    });
+});
