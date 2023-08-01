@@ -10,7 +10,10 @@ export class JediService {
     constructor(
         private _forceService: ForceService,
         private _weaponsService: WeaponsService
-    ) {}
+    ) {
+        console.log(this._forceService.abilities);
+        console.log(this._weaponsService.civilized);
+    }
 
     public addJedi(
         name: string,

@@ -1,5 +1,6 @@
 import { Class } from '../../interface/class';
-import { getMetadata, setMetadata } from '../../util/reflect';
+import { setMetadata } from '../../util/reflect';
+import { Service, ServiceCatalog } from '../injectable';
 import { getClassName, getInjectedDeps } from '../util/reflect';
 
 /** The name of the injected class. */
@@ -8,9 +9,8 @@ export const InjectableMetadataKey = 'resonance:injectable';
 /** The providedIn of the injected class. */
 export const ProvidedInMetadataKey = 'resonance:providedin';
 
-export interface Injectable {
+interface Injectable {
     providedIn: 'root' | 'module' | null;
-    providerName?: string;
 }
 
 /**
@@ -22,17 +22,11 @@ export const Injectable = (opts?: Injectable) => {
 
         instance.prototype.name = injectableName;
         instance.prototype.providedIn = opts?.providedIn ?? 'module';
-        instance.prototype.imports = getInjectedDeps(instance);
-
-        // console.log(instance.prototype);
+        instance.prototype.injected = getInjectedDeps(instance);
 
         setMetadata(InjectableMetadataKey, injectableName);
         setMetadata(ProvidedInMetadataKey, opts?.providedIn ?? 'module');
+
+        ServiceCatalog.set(injectableName, new Service(instance));
     };
 };
-
-export const getInjectedClassName = (instance: Class) =>
-    getMetadata(InjectableMetadataKey, instance);
-
-export const getInjectedProvidedIn = (instance: Class) =>
-    getMetadata(ProvidedInMetadataKey, instance);
