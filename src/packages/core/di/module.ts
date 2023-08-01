@@ -1,8 +1,9 @@
-import { Subject, forkJoin, of } from 'rxjs';
+import { Subject, firstValueFrom, forkJoin, of } from 'rxjs';
 import { Class } from '../interface/class';
 import { NcModule } from './decorators/module.decorator';
 import { getClassName } from './util/reflect';
 import { Service, ServiceCatalog } from './injectable';
+import { Route, RouteCatalog } from './route';
 
 class _ModuleCatalog extends Map<string, Module> {
     public onSet = new Subject<{
@@ -22,18 +23,11 @@ class _ModuleCatalog extends Map<string, Module> {
 
 export const ModuleCatalog = new _ModuleCatalog();
 
-export interface ServiceImport {
-    serviceName: string;
-    service: Class;
-    providedIn: 'root' | 'module' | null;
-    dependencies: string[];
-}
-
 export class Module {
     public name: string;
     public baseURL: string | undefined;
     public instance: Class;
-    public routes = new Map<string, Class>();
+    public routes = new Map<string, Route>();
     public declarations = new Map<string, Service>();
     public exports = new Map<string, Service>();
     public imports = new Map<string, Module>();
@@ -53,6 +47,7 @@ export class Module {
                 (exprt) => exprt.prototype.name
             )
         );
+        this._initializeRoutes(ncModule.routes);
     }
 
     private _processImports(imports: Class[] = []) {
@@ -71,7 +66,7 @@ export class Module {
         declarations: Class[] = [],
         exports: string[] = []
     ) {
-        declarations.forEach((serviceKlass, index) => {
+        declarations.forEach(async (serviceKlass, index) => {
             const serviceName = serviceKlass.prototype.name;
             const service = ServiceCatalog.get(serviceKlass.prototype.name);
 
@@ -83,87 +78,76 @@ export class Module {
 
             if (service.dependencies.length === 0) {
                 service.initializeInstance();
-
-                if (exports.includes(serviceName)) {
-                    this.exports.set(serviceName, service);
-                } else {
-                    this.declarations.set(serviceName, service);
-                }
             } else {
-                forkJoin(
-                    service.dependencies.map((dep) =>
-                        dep.instance ? of(true) : dep.$onInitialized
+                await firstValueFrom(
+                    forkJoin(
+                        service.dependencies.map((dep) =>
+                            dep.instance ? of(true) : dep.$onInitialized
+                        )
                     )
-                ).subscribe(() => {
-                    const args = service.dependencies.map(
-                        (service) => service.instance
+                );
+
+                const args = service.dependencies.map(
+                    (service) => service.instance
+                );
+
+                if (args.includes(undefined)) {
+                    throw new Error(
+                        `Failed to resolve dependency for ${serviceName} at index ${args.indexOf(
+                            undefined
+                        )}`
                     );
+                }
 
-                    if (args.includes(undefined)) {
-                        throw new Error(
-                            `Failed to resolve dependency for ${serviceName} at index ${args.indexOf(
-                                undefined
-                            )}`
-                        );
-                    }
+                service.initializeInstance(...args);
+            }
 
-                    service.initializeInstance(...args);
-                });
+            if (exports.includes(serviceName)) {
+                this.exports.set(serviceName, service);
+            } else {
+                this.declarations.set(serviceName, service);
             }
         });
     }
 
-    // private _initializeDeclarationWithDeps(
-    //     serviceImports: string[],
-    //     serviceName: string,
-    //     declaredService: Service
-    // ) {
-    //     const args: (Class | null)[] = [];
-    //     const onInjected: Observable<{
-    //         index: number;
-    //         injectedService: Service;
-    //     }>[] = [];
+    private _initializeRoutes(routes: Class[] = []) {
+        routes.forEach(async (routeKlass, index) => {
+            const routeName = routeKlass.prototype.name;
+            const route = RouteCatalog.get(routeKlass.prototype.name);
 
-    //     serviceImports.map((injectedServiceName, index) => {
-    //         const injectedService = ServiceCatalog.get(injectedServiceName);
+            if (route === undefined) {
+                throw new Error(
+                    `Failed to initialize dependency for ${routeName} at index ${index}.`
+                );
+            }
 
-    //         if (injectedService === undefined) {
-    //             throw new Error(
-    //                 `Failed to initialize dependency for ${serviceName} at index ${index}.`
-    //             );
-    //         }
+            if (route.dependencies.length === 0) {
+                route.initializeInstance();
+            } else {
+                await firstValueFrom(
+                    forkJoin(
+                        route.dependencies.map((dep) =>
+                            dep.instance ? of(true) : dep.$onInitialized
+                        )
+                    )
+                );
 
-    //         if (!injectedService.instance) {
-    //             args[index] = null;
-    //             onInjected.push(
-    //                 injectedService.$onInitialized.pipe(
-    //                     map(() => ({
-    //                         index,
-    //                         injectedService,
-    //                     }))
-    //                 )
-    //             );
-    //         } else {
-    //             args[index] = injectedService.instance;
-    //         }
-    //     });
+                const args = route.dependencies.map(
+                    (service) => service.instance
+                );
 
-    //     if (onInjected.length === 0) {
-    //         declaredService.initializeInstance(...args);
-    //         this.declarations.set(serviceName, declaredService);
-    //     }
-    // else {
-    //     forkJoin(onInjected)
-    //         .pipe(concatMap((val) => of(...val)))
-    //         .subscribe((dep) => {
-    //             if (dep.injectedService.instance) {
-    //                 args[dep.index] = dep.injectedService.instance;
-    //             } else {
-    //                 throw new Error(
-    //                     `Failed to initialize dependency for ${serviceName} at index ${dep.index}.`
-    //                 );
-    //             }
-    //         });
-    // }
-    // }
+                if (args.includes(undefined)) {
+                    throw new Error(
+                        `Failed to resolve dependency for ${routeName} at index ${args.indexOf(
+                            undefined
+                        )}`
+                    );
+                }
+
+                route.initializeInstance(...args);
+            }
+
+            this.routes.set(routeName, route);
+        });
+    }
 }

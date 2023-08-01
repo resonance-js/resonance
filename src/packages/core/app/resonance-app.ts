@@ -1,34 +1,56 @@
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, map } from 'rxjs';
 import { Class } from '../interface/class';
 import { ResonanceConfig } from './resonance-config';
 
 import express from 'express';
-import { NcLogger } from '../log/logger';
+import { $log, NcLogger } from '../log/logger';
 import { Server } from 'http';
+import { getClassName } from '../di/util/reflect';
+import { Module, ModuleCatalog } from '../di/module';
 
 new NcLogger('ResonanceApp');
 
-export const $onBootstrap = new Subject<void>();
-export const $onServerInit = new Subject<void>();
+export const $bootstrapped = new BehaviorSubject<boolean>(false);
+export const $serverInitialized = new BehaviorSubject<boolean>(false);
 
 export class Resonance {
-    public appRef?: any;
-    private server?: Server;
+    public appRef!: Module;
+    public server?: Server;
 
     private _app = express();
 
     constructor(private _config: ResonanceConfig) {}
 
     boostrap(appModule: Class) {
-        this.appRef = new appModule();
-        $onBootstrap.complete();
-        return this._createExpressServer();
+        const rootModuleName = getClassName(appModule);
+        const appRef = ModuleCatalog.get(rootModuleName);
+
+        if (appRef === undefined) {
+            throw new Error(
+                `Failed to initialize Resonance app root module ${rootModuleName}. Are you sure you provided the root module too bootstrap?`
+            );
+        }
+
+        this.appRef = appRef;
+
+        $bootstrapped.next(true);
+        $bootstrapped.complete();
+
+        return this._createExpressServer().pipe(
+            map((res) => {
+                this._initializeRoutes();
+                return res;
+            })
+        );
     }
 
     private _createExpressServer() {
         return new Observable<string>((observer) => {
             const callback = () => {
-                $onServerInit.complete();
+                const msg =
+                    'Resonance is listening on port ' + this._config.port;
+                $log.next(msg);
+                $serverInitialized.complete();
                 observer.next(
                     'Resonance is listening on port ' + this._config.port
                 );
@@ -48,6 +70,20 @@ export class Resonance {
                           this._config.hostname ?? 'localhost',
                           () => callback()
                       );
+        });
+    }
+
+    private _initializeRoutes(modules?: Map<string, Module>) {
+        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
+            ncModule.routes.forEach((route) => {
+                route.setModuleBaseRoute(ncModule.baseURL);
+                route.setAppBaseRoute(this.appRef.baseURL);
+                $log.next(route.path);
+            });
+
+            if (ncModule.imports) {
+                this._initializeRoutes(ncModule.imports);
+            }
         });
     }
 
