@@ -57,7 +57,7 @@ describe('Resonance app compiler', () => {
 
     beforeAll((done) => {
         app.boostrap(AppModule).subscribe((val) => {
-            expect(val.startsWith('Resonance is listening')).toEqual(true);
+            expect(val.includes('Resonance is listening')).toEqual(true);
             done();
         });
     });

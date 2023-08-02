@@ -1,14 +1,15 @@
-import { BehaviorSubject, Observable, map } from 'rxjs';
+import { BehaviorSubject, Observable, map, tap } from 'rxjs';
 import { Class } from '../interface/class';
 import { ResonanceConfig } from './resonance-config';
 
 import express from 'express';
-import { $log, NcLogger } from '../log/logger';
+import { NcLogger } from '../log/logger.service';
 import { Server } from 'http';
 import { getClassName } from '../di/util/reflect';
 import { Module, ModuleCatalog } from '../di/module';
+import { green } from '../log/colorize';
 
-new NcLogger('ResonanceApp');
+const console = new NcLogger('ResonanceApp');
 
 export const $bootstrapped = new BehaviorSubject<boolean>(false);
 export const $serverInitialized = new BehaviorSubject<boolean>(false);
@@ -37,9 +38,9 @@ export class Resonance {
         $bootstrapped.complete();
 
         return this._createExpressServer().pipe(
-            map((res) => {
+            map((msg) => {
                 this._initializeRoutes();
-                return res;
+                return msg;
             })
         );
     }
@@ -47,12 +48,14 @@ export class Resonance {
     private _createExpressServer() {
         return new Observable<string>((observer) => {
             const callback = () => {
-                const msg =
-                    'Resonance is listening on port ' + this._config.port;
-                $log.next(msg);
+                $serverInitialized.next(true);
                 $serverInitialized.complete();
                 observer.next(
-                    'Resonance is listening on port ' + this._config.port
+                    green(
+                        'Resonance is listening on port ' +
+                            this._config.port +
+                            '.'
+                    )
                 );
                 observer.complete();
             };
@@ -70,7 +73,11 @@ export class Resonance {
                           this._config.hostname ?? 'localhost',
                           () => callback()
                       );
-        });
+        }).pipe(
+            tap((msg) => {
+                console.log(msg);
+            })
+        );
     }
 
     private _initializeRoutes(modules?: Map<string, Module>) {
@@ -78,7 +85,7 @@ export class Resonance {
             ncModule.routes.forEach((route) => {
                 route.setModuleBaseRoute(ncModule.baseURL);
                 route.setAppBaseRoute(this.appRef.baseURL);
-                $log.next(route.path);
+                console.log(route.path);
             });
 
             if (ncModule.imports) {
