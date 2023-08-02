@@ -1,0 +1,16 @@
+{
+    "apps": [
+        {
+            "name": "cxjs",
+            "script": "npm run build:cxjs:watch"
+        },
+        {
+            "name": "file",
+            "script": "npm run build:file:watch"
+        },
+        {
+            "name": "resonance",
+            "script": "npm run build:resonance:watch"
+        }
+    ]
+}

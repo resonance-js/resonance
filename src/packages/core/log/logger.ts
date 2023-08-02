@@ -39,20 +39,20 @@ export class NcLogger {
         });
     }
 
-    public log(msg: any) {
-        this.$log.next(msg);
+    public log(...msg: any[]) {
+        msg.forEach((msg) => this.$log.next(msg));
     }
 
-    public error(msg: any) {
-        this.$error.next(msg);
+    public error(...msg: any[]) {
+        msg.forEach((msg) => this.$error.next(msg));
     }
 
-    public verbose(msg: any) {
-        this.$verbose.next(msg);
+    public verbose(...msg: any[]) {
+        msg.forEach((msg) => this.$verbose.next(msg));
     }
 
-    public debug(msg: any) {
-        this.$debug.next(msg);
+    public debug(...msg: any[]) {
+        msg.forEach((msg) => this.$debug.next(msg));
     }
 
     private _logger$ = merge(

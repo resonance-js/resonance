@@ -3,8 +3,16 @@
   "version": "1.0.0",
   "description": "A reactive framework for building node servers.",
   "main": "index.js",
+  "workspaces": [
+    "./src/packages/core",
+    "./src/packages/cxjs",
+    "./src/packages/file"
+  ],
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "build:cxjs:watch": "cd src/packages/cxjs;npx tsc --watch",
+    "build:file:watch": "cd src/packages/file;npx tsc --watch",
+    "build:resonance:watch": "cd src/packages/resonance;npx tsc --watch"
   },
   "author": "Alexander Porrello",
   "license": "ISC",

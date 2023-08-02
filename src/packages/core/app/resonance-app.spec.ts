@@ -1,38 +1,105 @@
+import { map, of } from 'rxjs';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { NcModule } from '../di/decorators/module.decorator';
 import { Route } from '../di/decorators/route.decorator';
-import { Get } from '../rest/decorators/get.decorator';
-import { $bootstrapped, Resonance } from './resonance-app';
+import { Get } from '../http/decorators/get.decorator';
+import { As } from '../../cxjs';
+import { HttpResponse } from '../http/interface/http-response';
+import { $bootstrapped } from './lifecycle';
+import { Resonance } from './resonance-app';
+
+interface Breed {
+    name: string;
+    primaryColor: string;
+    secondaryColor?: string;
+    coat: 'fur' | 'hair';
+    averageHeight?: number;
+    averageWeight?: number;
+}
 
 @Injectable()
 class BreedsService {
-    public breeds = [
-        'German Shepheard',
-        'Bulldog',
-        'Golden Retreiver',
-        'Siberian Husky',
+    public breeds: Breed[] = [
+        {
+            name: 'German Shepheard',
+            primaryColor: 'brown',
+            secondaryColor: 'black',
+            coat: 'hair',
+        },
+        {
+            name: 'Bulldog',
+            primaryColor: 'white',
+            secondaryColor: 'brown',
+            coat: 'hair',
+        },
+        {
+            name: 'Golden Retreiver',
+            primaryColor: 'yellow',
+            coat: 'fur',
+        },
+        {
+            name: 'Siberian Husky',
+            primaryColor: 'black',
+            secondaryColor: 'white',
+            coat: 'fur',
+        },
     ];
 
     constructor() {}
 
-    addBreed(breed: string) {
+    addBreed(breed: Breed) {
         this.breeds.push(breed);
     }
 
-    removeBreed(breed: string) {
-        this.breeds.splice(this.breeds.indexOf(breed), 1);
+    removeBreed(name: string) {
+        this.breeds.splice(
+            this.breeds.findIndex((breed) => breed.name === name),
+            1
+        );
+    }
+
+    getBreed(name: string) {
+        of(this.breeds.find((breed) => breed.name === name)).pipe(
+            map((breed) => {
+                if (breed === undefined) {
+                    throw As<HttpResponse>({
+                        status: 404,
+                        message: 'Breed with name ' + name + ' not found.',
+                    });
+                }
+
+                breed;
+            })
+        );
     }
 }
 
 @Route('breed')
 class BreedsRoute {
     constructor(private _breedsService: BreedsService) {
-        this._breedsService.addBreed('chihuahua');
+        this._breedsService.addBreed({
+            name: 'chihuahua',
+            coat: 'hair',
+            primaryColor: 'brown',
+            secondaryColor: 'white',
+        });
     }
 
     @Get()
     public getAllBreeds() {
         return this._breedsService.breeds;
+    }
+
+    @Get(':name')
+    public getBreed(name: string) {
+        this._breedsService.getBreed(name);
+    }
+
+    @Get(':colors')
+    public getBreedColors() {
+        return of(
+            this._breedsService.breeds.map((breed) => breed.primaryColor)
+        );
     }
 }
 

@@ -1,0 +1,12 @@
+{
+    "name": "@resonance/file",
+    "version": "0.0.1",
+    "author": "Alexander Porrello",
+    "description": ".",
+    "dependencies": {
+        "tslib": "^2.3.0"
+    },
+    "peerDependencies": {
+        "rxjs": "^6.5.3 || ^7.4.0"
+    }
+}

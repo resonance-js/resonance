@@ -1,16 +1,11 @@
 {
   "name": "@resonance/core",
-  "version": "0.0.0-PLACEHOLDER",
+  "version": "0.0.1",
   "description": "Resonance - the core framework",
   "author": "resonance",
   "license": "MIT",
   "engines": {
     "node": "^16.14.0 || >=18.10.0"
-  },
-  "exports": {
-    "./schematics/*": {
-      "default": "./schematics/*.js"
-    }
   },
   "dependencies": {
     "tslib": "^2.3.0"

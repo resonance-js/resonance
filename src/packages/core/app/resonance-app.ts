@@ -1,29 +1,50 @@
-import { BehaviorSubject, Observable, map, tap } from 'rxjs';
-import { Class } from '../interface/class';
+import express, { Request, Response } from 'express';
+import { Observable, tap } from 'rxjs';
 import { ResonanceConfig } from './resonance-config';
+import {
+    Server as SecureServer,
+    createServer as createSecureServer,
+} from 'https';
+import { Server, createServer } from 'http';
 
-import express from 'express';
-import { NcLogger } from '../log/logger.service';
-import { Server } from 'http';
-import { getClassName } from '../di/util/reflect';
+import { Class } from '../interface/class';
+import { GetMetadataKey } from '../http';
 import { Module, ModuleCatalog } from '../di/module';
+import { NcLogger } from '../log/logger';
+import { getClassMembers, getMetadata } from '../util/reflect';
+import { getClassName } from '../di/util/reflect';
 import { green } from '../log/colorize';
+import { $bootstrapped, $routesInitialized, $serverInitialized } from './lifecycle';
 
 const console = new NcLogger('ResonanceApp');
 
-export const $bootstrapped = new BehaviorSubject<boolean>(false);
-export const $serverInitialized = new BehaviorSubject<boolean>(false);
-
 export class Resonance {
     public appRef!: Module;
-    public server?: Server;
-
-    private _app = express();
+    public appExpress = express();
+    public appServer?: Server | SecureServer;
 
     constructor(private _config: ResonanceConfig) {}
 
-    boostrap(appModule: Class) {
+    boostrap(rootAppModule: Class) {
+        this._bootstrap(rootAppModule);
+        $bootstrapped.next(true);
+        $bootstrapped.complete();
+
+        this._initializeRoutes();
+        $routesInitialized.next(true);
+        $routesInitialized.complete();
+
+        return this._initializeServer().pipe(
+            tap(() => {
+                $serverInitialized.next(true);
+                $serverInitialized.complete();
+            })
+        );
+    }
+
+    private _bootstrap(appModule: Class) {
         const rootModuleName = getClassName(appModule);
+
         const appRef = ModuleCatalog.get(rootModuleName);
 
         if (appRef === undefined) {
@@ -33,23 +54,53 @@ export class Resonance {
         }
 
         this.appRef = appRef;
-
-        $bootstrapped.next(true);
-        $bootstrapped.complete();
-
-        return this._createExpressServer().pipe(
-            map((msg) => {
-                this._initializeRoutes();
-                return msg;
-            })
-        );
     }
 
-    private _createExpressServer() {
+    private _initializeRoutes(modules?: Map<string, Module>) {
+        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
+            ncModule.routes.forEach((route) => {
+                route.setModuleBaseRoute(ncModule.baseURL);
+                route.setAppBaseRoute(this.appRef.baseURL);
+
+                const classMembers = getClassMembers(route.route);
+                Object.keys(classMembers).forEach((classMember) => {
+                    if (classMembers[classMember] === 'function') {
+                        const routeDefined = Reflect.hasMetadata(
+                            GetMetadataKey,
+                            route.route.prototype[classMember]
+                        );
+
+                        if (routeDefined) {
+                            const methodRoute = [
+                                ...route.path,
+                                getMetadata(
+                                    GetMetadataKey,
+                                    route.route.prototype[classMember]
+                                ),
+                            ]
+                                .filter((segment) => segment.length > 0)
+                                .join('/');
+
+                            this.appExpress.get(
+                                methodRoute,
+                                (req: Request, res: Response) => {
+                                    console.log(req, res);
+                                }
+                            );
+                        }
+                    }
+                });
+            });
+
+            if (ncModule.imports) {
+                this._initializeRoutes(ncModule.imports);
+            }
+        });
+    }
+
+    private _initializeServer() {
         return new Observable<string>((observer) => {
             const callback = () => {
-                $serverInitialized.next(true);
-                $serverInitialized.complete();
                 observer.next(
                     green(
                         'Resonance is listening on port ' +
@@ -60,15 +111,19 @@ export class Resonance {
                 observer.complete();
             };
 
-            this.server =
+            const server = this._config.credentials
+                ? createSecureServer(this.appExpress)
+                : createServer(this.appExpress);
+
+            this.appServer =
                 this._config.backlog !== undefined
-                    ? this._app.listen(
+                    ? server.listen(
                           this._config.port,
                           this._config.hostname ?? 'localhost',
                           this._config.backlog,
                           () => callback()
                       )
-                    : this._app.listen(
+                    : server.listen(
                           this._config.port,
                           this._config.hostname ?? 'localhost',
                           () => callback()
@@ -80,28 +135,14 @@ export class Resonance {
         );
     }
 
-    private _initializeRoutes(modules?: Map<string, Module>) {
-        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
-            ncModule.routes.forEach((route) => {
-                route.setModuleBaseRoute(ncModule.baseURL);
-                route.setAppBaseRoute(this.appRef.baseURL);
-                console.log(route.path);
-            });
-
-            if (ncModule.imports) {
-                this._initializeRoutes(ncModule.imports);
-            }
-        });
-    }
-
     public exit() {
         return new Observable<string>((observer) => {
-            if (this.server)
-                this.server.close((err) => {
+            if (this.appServer)
+                this.appServer.close((err) => {
                     if (err) {
                         observer.error(err);
                     } else {
-                        this.server?.closeAllConnections();
+                        this.appServer?.closeAllConnections();
                         observer.next(
                             'Resonance exited for connection on port ' +
                                 this._config.port

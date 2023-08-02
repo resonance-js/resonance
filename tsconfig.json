@@ -7,7 +7,11 @@
         "module": "commonjs",
         "outDir": "./dist",
         // "baseUrl": "./" /* Specify the base directory to resolve non-relative module names. */,
-        // "paths": {} /* Specify a set of entries that re-map imports to additional lookup locations. */,
+        // "paths": {
+        //     "@resonance/core": ["./src/packages/core"],
+        //     "@resonance/cxjs": ["./src/packages/cxjs"],
+        //     "@resonance/file": ["./src/packages/file"]
+        // },
         "types": ["reflect-metadata", "jest"],
         "declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
         "declarationMap": true /* Create sourcemaps for d.ts files. */,

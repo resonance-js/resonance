@@ -1,0 +1,12 @@
+{
+    "name": "@resonance/cxjs",
+    "version": "0.0.1",
+    "author": "Alexander Porrello",
+    "description": "CxJS (Concise Extensions for Javascript) is a library that helps reduce the amount of code required to complete common tasks.",
+    "dependencies": {
+        "tslib": "^2.3.0"
+    },
+    "peerDependencies": {
+        "rxjs": "^6.5.3 || ^7.4.0"
+    }
+}
