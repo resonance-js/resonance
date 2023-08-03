@@ -1,50 +1,58 @@
-import { Subject } from 'rxjs';
+import { forkJoin, map, of, take } from 'rxjs';
 import { Class } from '../interface/class';
+import { ReactiveSubject } from '../util';
 
-class _ServiceCatalog extends Map<string, Service> {
-    public onChange = new Subject<Service>();
-    override set(key: string, injectable: Service) {
-        super.set(key, injectable);
-        this.onChange.next(injectable);
-        return this;
-    }
-}
-
-export const ServiceCatalog = new _ServiceCatalog();
-
-export class Service {
-    public name: string;
-    public providedIn: string;
+export abstract class Injectable {
+    public dependencies: Injectable[] = [];
     public instance?: Class;
-    public dependencies: Service[] = [];
 
-    public $onInitialized = new Subject<boolean>();
+    public $onInit = new ReactiveSubject<boolean>();
 
-    public exported?: boolean;
-    public moduleName?: string;
+    constructor(
+        public klass: Class,
+        public name: string,
+        public injectableType: string
+    ) {}
 
-    constructor(public service: Class) {
-        this.name = service.prototype.name;
-        this.providedIn = service.prototype.providedIn ?? 'module';
+    public init() {
+        this.dependencies = (this.klass.prototype.injected as string[]).map(
+            (dependencyName, index) =>
+                this._loadDependencyFromCatalog(dependencyName, index)
+        );
 
-        (service.prototype.injected as string[]).forEach(
-            (dependencyName, index) => {
-                const dependency = ServiceCatalog.get(dependencyName);
+        this._injectDependencies().subscribe(() => this.$onInit.next(true));
+    }
 
-                if (!dependency) {
+    protected abstract _loadDependencyFromCatalog(
+        dependencyName: string,
+        index: number
+    ): Injectable;
+
+    private _injectDependencies() {
+        if (this.dependencies.length === 0) {
+            this.instance = new this.klass();
+            return of(true);
+        }
+
+        return forkJoin(
+            this.dependencies.map((dep) => dep.$onInit.next$.pipe(take(1)))
+        ).pipe(
+            map(() => {
+                const args = this.dependencies.map(
+                    (service) => service.instance
+                );
+
+                if (args.includes(undefined)) {
                     throw new Error(
-                        `Failed to initialize dependency for ${this.name} at index ${index}.`
+                        `Failed to resolve dependency for ${
+                            this.injectableType
+                        } ${this.name}  at index ${args.indexOf(undefined)}`
                     );
                 }
 
-                this.dependencies.push(dependency);
-            }
+                this.instance = new this.klass(...args);
+                return true;
+            })
         );
-    }
-
-    public initializeInstance(...args: any[]) {
-        this.instance = new this.service(...args);
-        this.$onInitialized.next(true);
-        this.$onInitialized.complete();
     }
 }

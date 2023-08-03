@@ -1,20 +1,20 @@
-export const GetMetadataKey = 'resonance:get';
+export const PutMetadataKey = 'resonance:put';
 
 /**
- * Decorator that marks a function as a `get` endpoint.'
+ * Decorator that marks a function as a `put` endpoint.'
  * @param path Defines the endpoint that will invoke the decorated function.
  *
  * @usageNotes
  *
- * Decorating a function with `@Get()` ensures that the compiler
- * will generate the metadata necessary to create a GET route.
+ * Decorating a function with `@Put()` ensures that the compiler
+ * will generate the metadata necessary to create a PUT method route.
  *
  * Unless the decorated function returns a static object or variable,
  * we recommend returning an Observable. When the HTTP method is called,
  * Resonance handles subscribing, unsubscribing, and destorying the
  * observable.
  */
-export function Get(...path: string[]) {
+export function Put(...path: string[]) {
     return function (
         // @ts-ignore
         target: any,
@@ -23,7 +23,7 @@ export function Get(...path: string[]) {
         descriptor: PropertyDescriptor
     ) {
         Reflect.defineMetadata(
-            GetMetadataKey,
+            PutMetadataKey,
             path.join('/'),
             descriptor.value
         );
@@ -32,8 +32,8 @@ export function Get(...path: string[]) {
 }
 
 /**
- * Evaluates whether the `get` metadata has been defined for a function.
+ * Evaluates whether the `put` metadata has been defined for a function.
  * @param fnction The function of a {@link Route}.
  */
-export const isGet = (fnction: Function) =>
-    Reflect.hasMetadata(GetMetadataKey, fnction);
+export const isPut = (fnction: Function) =>
+    Reflect.hasMetadata(PutMetadataKey, fnction);

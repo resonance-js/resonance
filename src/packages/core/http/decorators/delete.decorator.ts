@@ -1,20 +1,20 @@
-export const GetMetadataKey = 'resonance:get';
+export const DeleteMetadataKey = 'resonance:delete';
 
 /**
- * Decorator that marks a function as a `get` endpoint.'
+ * Decorator that marks a function as a `delete` endpoint.'
  * @param path Defines the endpoint that will invoke the decorated function.
  *
  * @usageNotes
  *
- * Decorating a function with `@Get()` ensures that the compiler
- * will generate the metadata necessary to create a GET route.
+ * Decorating a function with `@Delete()` ensures that the compiler
+ * will generate the metadata necessary to create a DELETE route.
  *
  * Unless the decorated function returns a static object or variable,
  * we recommend returning an Observable. When the HTTP method is called,
  * Resonance handles subscribing, unsubscribing, and destorying the
  * observable.
  */
-export function Get(...path: string[]) {
+export function Delete(...path: string[]) {
     return function (
         // @ts-ignore
         target: any,
@@ -23,7 +23,7 @@ export function Get(...path: string[]) {
         descriptor: PropertyDescriptor
     ) {
         Reflect.defineMetadata(
-            GetMetadataKey,
+            DeleteMetadataKey,
             path.join('/'),
             descriptor.value
         );
@@ -32,8 +32,8 @@ export function Get(...path: string[]) {
 }
 
 /**
- * Evaluates whether the `get` metadata has been defined for a function.
+ * Evaluates whether the `delete` metadata has been defined for a function.
  * @param fnction The function of a {@link Route}.
  */
-export const isGet = (fnction: Function) =>
-    Reflect.hasMetadata(GetMetadataKey, fnction);
+export const isDelete = (fnction: Function) =>
+    Reflect.hasMetadata(DeleteMetadataKey, fnction);

@@ -1,6 +1,12 @@
 import { Subject } from 'rxjs';
 import { Class } from '../interface/class';
-import { Service, ServiceCatalog } from './injectable';
+import { getClassMembers, getFunctionParameters } from '../util/reflect';
+import { isGet } from '../http';
+import { isDelete } from '../http/decorators/delete.decorator';
+import { isPost } from '../http/decorators/post.decorator';
+import { isPut } from '../http/decorators/put.decorator';
+import { Injectable } from './injectable';
+import { ServiceCatalog } from './service';
 
 export const RouteNameMetadataKey = 'resonance:route:name';
 export const RouteMetadataKey = 'resonance:route';
@@ -16,35 +22,68 @@ class _RouteCatalog extends Map<string, Route> {
 
 export const RouteCatalog = new _RouteCatalog();
 
-export class Route {
-    public instance?: Class;
-    public dependencies: Service[] = [];
+export class Route extends Injectable {
     public path: string[];
+    public routeMethodTree: {
+        [fnName: string]: {
+            httpMethod: string;
+            parameters: {
+                [parameter: string]: string;
+            };
+        };
+    } = {};
 
-    constructor(
-        public route: Class,
-        public name: string,
-        _route: string
-    ) {
+    constructor(klass: Class, name: string, _route: string) {
+        super(klass, name, 'Route');
+
         this.path = [_route];
-
-        (route.prototype.injected as string[]).forEach(
-            (dependencyName, index) => {
-                const dependency = ServiceCatalog.get(dependencyName);
-
-                if (!dependency) {
-                    throw new Error(
-                        `Failed to initialize dependency ${dependencyName} for Route ${this.name} at index ${index}.`
-                    );
-                }
-
-                this.dependencies.push(dependency);
-            }
-        );
+        this._buildRouteMethodTree();
+        this.init();
     }
 
-    public initializeInstance(...args: any[]) {
-        this.instance = new this.route(...args);
+    protected override _loadDependencyFromCatalog(
+        dependencyName: string,
+        index: number
+    ): Injectable {
+        const dependency = ServiceCatalog.get(dependencyName);
+
+        if (!dependency) {
+            throw new Error(
+                `Failed to initialize dependency ${dependencyName} for ${this.injectableType} ${this.name} at index ${index}.`
+            );
+        }
+
+        return dependency;
+    }
+
+    private _buildRouteMethodTree() {
+        const functions = getClassMembers(this.klass);
+
+        Object.keys(functions)
+            .filter((fnName) => functions[fnName] === 'function')
+            .forEach((fnName) => {
+                const httpMethod = this._getHttpMethod(fnName);
+                if (httpMethod)
+                    this.routeMethodTree[fnName] = {
+                        httpMethod,
+                        parameters: getFunctionParameters(
+                            this.klass.prototype[fnName]
+                        ),
+                    };
+            });
+    }
+
+    private _getHttpMethod(
+        fnKey: string
+    ): 'GET' | 'PUT' | 'POST' | 'DELETE' | null {
+        const fnction = this.klass.prototype[fnKey];
+
+        if (isGet(fnction)) return 'GET';
+        if (isPost(fnction)) return 'POST';
+        if (isPut(fnction)) return 'PUT';
+        if (isDelete(fnction)) return 'DELETE';
+
+        return null;
     }
 
     /**

@@ -1,6 +1,6 @@
 import { Class } from '../../interface/class';
 import { setMetadata } from '../../util/reflect';
-import { Service, ServiceCatalog } from '../injectable';
+import { Service, ServiceCatalog } from '../service';
 import { getClassName, getInjectedDeps } from '../util/reflect';
 
 /** The name of the injected class. */
@@ -27,6 +27,9 @@ export const Injectable = (opts?: Injectable) => {
         setMetadata(InjectableMetadataKey, injectableName);
         setMetadata(ProvidedInMetadataKey, opts?.providedIn ?? 'module');
 
-        ServiceCatalog.set(injectableName, new Service(instance));
+        ServiceCatalog.set(
+            injectableName,
+            new Service(instance, injectableName)
+        );
     };
 };

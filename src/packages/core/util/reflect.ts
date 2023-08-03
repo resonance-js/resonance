@@ -45,3 +45,15 @@ export const getClassMembers = (target: any) => {
 
     return toReturn;
 };
+
+export const getFunctionParameters = (target: any) => {
+    const toReturn: { [name: string | symbol]: any } = {};
+
+    if (target) {
+        Reflect.ownKeys(target).forEach((parameters) => {
+            toReturn[parameters] = typeof target[parameters];
+        });
+    }
+
+    return toReturn;
+};

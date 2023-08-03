@@ -1,16 +1,10 @@
-import {
-    BehaviorSubject,
-    Subject,
-    firstValueFrom,
-    forkJoin,
-    map,
-    of,
-} from 'rxjs';
+import { Subject, concatMap, forkJoin, map, take } from 'rxjs';
 import { Class } from '../interface/class';
 import { NcModule } from './decorators/module.decorator';
 import { getClassName } from './util/reflect';
-import { Service, ServiceCatalog } from './injectable';
+import { Service, ServiceCatalog } from './service';
 import { Route, RouteCatalog } from './route';
+import { ReactiveSubject } from '../util';
 
 class _ModuleCatalog extends Map<string, Module> {
     public onSet = new Subject<{
@@ -39,24 +33,33 @@ export class Module {
     public exports = new Map<string, Service>();
     public imports = new Map<string, Module>();
 
-    public $routesInitialized = new BehaviorSubject<boolean>(false);
+    public $onInit = new ReactiveSubject<boolean>();
 
     constructor(
-        public module: Class,
+        public klass: Class,
         ncModule: NcModule
     ) {
-        this.name = getClassName(module);
+        this.name = getClassName(klass);
         this.baseURL = ncModule.baseURL;
-        this.instance = new module();
+        this.instance = new klass();
         this.imports = this._processImports(ncModule.imports);
 
-        this._initializeDeclarations(
-            ncModule.declarations,
-            Object.values(ncModule.exports ?? []).map(
-                (exprt) => exprt.prototype.name
+        forkJoin(
+            this._initializeDeclarations(
+                ncModule.declarations,
+                Object.values(ncModule.exports ?? []).map(
+                    (exprt) => exprt.prototype.name
+                )
             )
-        );
-        this._initializeRoutes(ncModule.routes);
+        )
+            .pipe(
+                concatMap(() =>
+                    forkJoin(this._initializeRoutes(ncModule.routes))
+                )
+            )
+            .subscribe(() => {
+                this.$onInit.next(true);
+            });
     }
 
     private _processImports(imports: Class[] = []) {
@@ -75,103 +78,44 @@ export class Module {
         declarations: Class[] = [],
         exports: string[] = []
     ) {
-        declarations.forEach(async (serviceKlass, index) => {
+        return declarations.map((serviceKlass, index) => {
             const serviceName = serviceKlass.prototype.name;
-            const service = ServiceCatalog.get(serviceKlass.prototype.name);
+            const service = ServiceCatalog.get(serviceName);
 
             if (service === undefined) {
                 throw new Error(
-                    `Failed to initialize dependency for ${serviceName} at index ${index}.`
+                    `Failed to initialize declaration ${serviceName} for module ${this.name} at index ${index}. ` +
+                        `Did you decorate ${serviceName} with @Service()?`
                 );
             }
 
-            if (service.dependencies.length === 0) {
-                service.initializeInstance();
-            } else {
-                await firstValueFrom(
-                    forkJoin(
-                        service.dependencies.map((dep) =>
-                            dep.instance ? of(true) : dep.$onInitialized
-                        )
-                    )
-                );
-
-                const args = service.dependencies.map(
-                    (service) => service.instance
-                );
-
-                if (args.includes(undefined)) {
-                    throw new Error(
-                        `Failed to resolve dependency for ${serviceName} at index ${args.indexOf(
-                            undefined
-                        )}`
-                    );
-                }
-
-                service.initializeInstance(...args);
-            }
-
-            if (exports.includes(serviceName)) {
-                this.exports.set(serviceName, service);
-            } else {
-                this.declarations.set(serviceName, service);
-            }
+            return service.$onInit.next$.pipe(
+                take(1),
+                map(() =>
+                    exports.includes(serviceName)
+                        ? this.exports.set(serviceName, service)
+                        : this.declarations.set(serviceName, service)
+                )
+            );
         });
     }
 
-    private async _initializeRoutes(routes: Class[] = []) {
-        forkJoin([
-            ...routes.flatMap((routeKlass, index) => {
-                const routeName = routeKlass.prototype.name;
-                const route = RouteCatalog.get(routeKlass.prototype.name);
+    private _initializeRoutes(routes: Class[] = []) {
+        return routes.map((routeKlass, index) => {
+            const routeName = routeKlass.prototype.name;
+            const route = RouteCatalog.get(routeName);
 
-                if (route === undefined) {
-                    throw new Error(
-                        `Failed to initialize dependency for ${routeName} at index ${index}.`
-                    );
-                }
-
-                const initializeRoute = () => {
-                    if (route.dependencies.length === 0) {
-                        route.initializeInstance();
-                        return of(true);
-                    }
-
-                    return forkJoin(
-                        route.dependencies.map((dep) =>
-                            dep.instance ? of(true) : dep.$onInitialized.pipe()
-                        )
-                    ).pipe(
-                        map(() => {
-                            const args = route.dependencies.map(
-                                (service) => service.instance
-                            );
-
-                            if (args.includes(undefined)) {
-                                throw new Error(
-                                    `Failed to resolve dependency for ${routeName} at index ${args.indexOf(
-                                        undefined
-                                    )}`
-                                );
-                            }
-
-                            route.initializeInstance(...args);
-                            return true;
-                        })
-                    );
-                };
-
-                return initializeRoute().pipe(
-                    map(() => {
-                        this.routes.set(routeName, route);
-                        return 'Route initialized';
-                    })
+            if (route === undefined) {
+                throw new Error(
+                    `Failed to initialize route ${routeName} for module ${this.name} at index ${index}. ` +
+                        `Did you decorate ${routeName} with @Route()?`
                 );
-            }),
-        ]).subscribe({
-            next: () => {
-                this.$routesInitialized.next(true);
-            },
+            }
+
+            return route.$onInit.next$.pipe(
+                take(1),
+                map(() => this.routes.set(routeName, route))
+            );
         });
     }
 }

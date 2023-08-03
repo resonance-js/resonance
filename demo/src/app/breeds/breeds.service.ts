@@ -1,5 +1,5 @@
 import { of, map } from 'rxjs';
-import { HttpResponse, Injectable } from '@resonance/core';
+import { HttpErrorResponse, Injectable } from '@resonance/core';
 import { As } from '@resonance/cxjs';
 
 @Injectable()
@@ -44,12 +44,13 @@ export class BreedsService {
     }
 
     getBreed(name: string) {
-        of(this.breeds.find((breed) => breed.name === name)).pipe(
+        return of(this.breeds.find((breed) => breed.name === name)).pipe(
             map((breed) => {
                 if (breed === undefined) {
-                    throw As<HttpResponse>({
-                        status: 404,
+                    throw As<HttpErrorResponse>({
+                        statusCode: 404,
                         message: 'Breed with name ' + name + ' not found.',
+                        stack: new Error(),
                     });
                 }
 

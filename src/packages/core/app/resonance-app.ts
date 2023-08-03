@@ -1,5 +1,4 @@
-import express, { Request, Response } from 'express';
-import { Observable, Subject, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { ResonanceConfig } from './resonance-config';
 import {
     Server as SecureServer,
@@ -8,10 +7,8 @@ import {
 import { Server, createServer } from 'http';
 
 import { Class } from '../interface/class';
-import { GetMetadataKey } from '../http';
 import { Module, ModuleCatalog } from '../di/module';
-// import { NcLogger } from '../log/logger';
-import { getClassMembers, getMetadata } from '../util/reflect';
+import { NcLogger } from '../log/logger';
 import { getClassName } from '../di/util/reflect';
 import { green } from '../log/colorize';
 import {
@@ -19,16 +16,16 @@ import {
     $routesInitialized,
     $serverInitialized,
 } from './lifecycle';
+import { NcRouter } from '../http/router';
 import { Route } from '../di/route';
 
-// const console = new NcLogger('ResonanceApp');
-
-export const $initializeRoute = new Subject<string>();
+const console = new NcLogger('ResonanceApp');
 
 export class Resonance {
     public appRef!: Module;
-    public appExpress = express();
+
     public appServer?: Server | SecureServer;
+    public router!: NcRouter;
 
     constructor(private _config: ResonanceConfig) {}
 
@@ -63,59 +60,21 @@ export class Resonance {
         this.appRef = appRef;
     }
 
-    private _initializeRoutes(modules?: Map<string, Module>) {
-        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
-            ncModule.$routesInitialized.subscribe((initialized) => {
-                if (initialized) {
-                    ncModule.routes.forEach((route) =>
-                        this._initializeRoute(route)
-                    );
+    public routes: Route[] = [];
 
-                    if (Object.keys(ncModule.imports).length > 0) {
-                        this._initializeRoutes(ncModule.imports);
-                    }
+    private _initializeRoutes(modules?: Map<string, Module>) {
+        this.router = new NcRouter(this.appRef.baseURL);
+
+        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
+            ncModule.$onInit.next$.subscribe(() => {
+                ncModule.routes.forEach((route) => {
+                    this.router.initializeRoute(route);
+                });
+
+                if (Object.keys(ncModule.imports).length > 0) {
+                    this._initializeRoutes(ncModule.imports);
                 }
             });
-        });
-    }
-
-    private _initializeRoute(route: Route, moduleBaseURL?: string) {
-        console.log(route);
-        route.setModuleBaseRoute(moduleBaseURL);
-        route.setAppBaseRoute(this.appRef.baseURL);
-
-        const classMembers = getClassMembers(route.route);
-        Object.keys(classMembers).forEach((classMember) => {
-            if (classMembers[classMember] === 'function') {
-                const routeDefined = Reflect.hasMetadata(
-                    GetMetadataKey,
-                    route.route.prototype[classMember]
-                );
-
-                if (routeDefined) {
-                    const methodRoute = [
-                        ...route.path,
-                        getMetadata(
-                            GetMetadataKey,
-                            route.route.prototype[classMember]
-                        ),
-                    ]
-                        .filter((segment) => segment.length > 0)
-                        .join('/');
-
-                    console.log('Mapped route ' + methodRoute + '.');
-
-                    this.appExpress = this.appExpress.get(
-                        methodRoute,
-                        //@ts-ignore
-                        (req: Request, res: Response) => {
-                            res.status(200).send({
-                                hello: 'world',
-                            });
-                        }
-                    );
-                }
-            }
         });
     }
 
@@ -132,9 +91,11 @@ export class Resonance {
                 observer.complete();
             };
 
+            this.router.appExpress.get('/api');
+
             const server = this._config.credentials
-                ? createSecureServer(this.appExpress)
-                : createServer(this.appExpress);
+                ? createSecureServer(this.router.appExpress)
+                : createServer(this.router.appExpress);
 
             this.appServer =
                 this._config.backlog !== undefined

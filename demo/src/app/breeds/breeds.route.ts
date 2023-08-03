@@ -18,12 +18,12 @@ export class BreedsRoute {
         return this._breedsService.breeds;
     }
 
-    @Get(':name')
+    @Get('name/:name')
     public getBreed(name: string) {
-        this._breedsService.getBreed(name);
+        return this._breedsService.getBreed(name);
     }
 
-    @Get(':colors')
+    @Get('color')
     public getBreedColors() {
         return of(
             this._breedsService.breeds.map((breed) => breed.primaryColor)
