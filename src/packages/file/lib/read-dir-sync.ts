@@ -17,7 +17,7 @@ export function readDirSync(...pathSegments: string[]): string[] {
         }
 
         return fsReaddirSync(dirPath);
-    } catch (err) {
+    } catch (err: any) {
         console.warn(err['message'] || `Failed to read dir at ${dirPath}.`);
     }
 

@@ -1,4 +1,11 @@
-import { Subject, firstValueFrom, forkJoin, of } from 'rxjs';
+import {
+    BehaviorSubject,
+    Subject,
+    firstValueFrom,
+    forkJoin,
+    map,
+    of,
+} from 'rxjs';
 import { Class } from '../interface/class';
 import { NcModule } from './decorators/module.decorator';
 import { getClassName } from './util/reflect';
@@ -31,6 +38,8 @@ export class Module {
     public declarations = new Map<string, Service>();
     public exports = new Map<string, Service>();
     public imports = new Map<string, Module>();
+
+    public $routesInitialized = new BehaviorSubject<boolean>(false);
 
     constructor(
         public module: Class,
@@ -110,44 +119,59 @@ export class Module {
         });
     }
 
-    private _initializeRoutes(routes: Class[] = []) {
-        routes.forEach(async (routeKlass, index) => {
-            const routeName = routeKlass.prototype.name;
-            const route = RouteCatalog.get(routeKlass.prototype.name);
+    private async _initializeRoutes(routes: Class[] = []) {
+        forkJoin([
+            ...routes.flatMap((routeKlass, index) => {
+                const routeName = routeKlass.prototype.name;
+                const route = RouteCatalog.get(routeKlass.prototype.name);
 
-            if (route === undefined) {
-                throw new Error(
-                    `Failed to initialize dependency for ${routeName} at index ${index}.`
-                );
-            }
-
-            if (route.dependencies.length === 0) {
-                route.initializeInstance();
-            } else {
-                await firstValueFrom(
-                    forkJoin(
-                        route.dependencies.map((dep) =>
-                            dep.instance ? of(true) : dep.$onInitialized
-                        )
-                    )
-                );
-
-                const args = route.dependencies.map(
-                    (service) => service.instance
-                );
-
-                if (args.includes(undefined)) {
+                if (route === undefined) {
                     throw new Error(
-                        `Failed to resolve dependency for ${routeName} at index ${args.indexOf(
-                            undefined
-                        )}`
+                        `Failed to initialize dependency for ${routeName} at index ${index}.`
                     );
                 }
 
-                route.initializeInstance(...args);
-            }
+                const initializeRoute = () => {
+                    if (route.dependencies.length === 0) {
+                        route.initializeInstance();
+                        return of(true);
+                    }
 
-            this.routes.set(routeName, route);
+                    return forkJoin(
+                        route.dependencies.map((dep) =>
+                            dep.instance ? of(true) : dep.$onInitialized.pipe()
+                        )
+                    ).pipe(
+                        map(() => {
+                            const args = route.dependencies.map(
+                                (service) => service.instance
+                            );
+
+                            if (args.includes(undefined)) {
+                                throw new Error(
+                                    `Failed to resolve dependency for ${routeName} at index ${args.indexOf(
+                                        undefined
+                                    )}`
+                                );
+                            }
+
+                            route.initializeInstance(...args);
+                            return true;
+                        })
+                    );
+                };
+
+                return initializeRoute().pipe(
+                    map(() => {
+                        this.routes.set(routeName, route);
+                        return 'Route initialized';
+                    })
+                );
+            }),
+        ]).subscribe({
+            next: () => {
+                this.$routesInitialized.next(true);
+            },
         });
     }
 }

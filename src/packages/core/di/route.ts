@@ -21,8 +21,6 @@ export class Route {
     public dependencies: Service[] = [];
     public path: string[];
 
-    public $onInitialized = new Subject<boolean>();
-
     constructor(
         public route: Class,
         public name: string,
@@ -47,8 +45,6 @@ export class Route {
 
     public initializeInstance(...args: any[]) {
         this.instance = new this.route(...args);
-        this.$onInitialized.next(true);
-        this.$onInitialized.complete();
     }
 
     /**

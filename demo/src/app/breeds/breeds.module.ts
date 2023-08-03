@@ -1,6 +1,6 @@
 import { NcModule } from '@resonance/core';
-import { BreedsRoute } from './breeds.route';
 import { BreedsService } from './breeds.service';
+import { BreedsRoute } from './breeds.route';
 
 @NcModule({
     baseURL: 'breeds',

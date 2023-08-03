@@ -1,12 +1,22 @@
 {
     "name": "@resonance/cxjs",
     "version": "0.0.1",
+    "description": "@resonance/CxJS - (Concise Extensions for Javascript) reduces boilerplate code required to complete common tasks.",
     "author": "Alexander Porrello",
-    "description": "CxJS (Concise Extensions for Javascript) is a library that helps reduce the amount of code required to complete common tasks.",
+    "license": "MIT",
+    "main": "index",
+    "engines": {
+        "node": "^16.14.0 || >=18.10.0"
+    },
     "dependencies": {
         "tslib": "^2.3.0"
     },
     "peerDependencies": {
         "rxjs": "^6.5.3 || ^7.4.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/resonance-js/resonance.git",
+        "directory": "packages/core"
     }
 }

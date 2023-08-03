@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { Observable, tap } from 'rxjs';
+import { Observable, Subject, tap } from 'rxjs';
 import { ResonanceConfig } from './resonance-config';
 import {
     Server as SecureServer,
@@ -10,13 +10,20 @@ import { Server, createServer } from 'http';
 import { Class } from '../interface/class';
 import { GetMetadataKey } from '../http';
 import { Module, ModuleCatalog } from '../di/module';
-import { NcLogger } from '../log/logger';
+// import { NcLogger } from '../log/logger';
 import { getClassMembers, getMetadata } from '../util/reflect';
 import { getClassName } from '../di/util/reflect';
 import { green } from '../log/colorize';
-import { $bootstrapped, $routesInitialized, $serverInitialized } from './lifecycle';
+import {
+    $bootstrapped,
+    $routesInitialized,
+    $serverInitialized,
+} from './lifecycle';
+import { Route } from '../di/route';
 
-const console = new NcLogger('ResonanceApp');
+// const console = new NcLogger('ResonanceApp');
+
+export const $initializeRoute = new Subject<string>();
 
 export class Resonance {
     public appRef!: Module;
@@ -58,42 +65,56 @@ export class Resonance {
 
     private _initializeRoutes(modules?: Map<string, Module>) {
         (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
-            ncModule.routes.forEach((route) => {
-                route.setModuleBaseRoute(ncModule.baseURL);
-                route.setAppBaseRoute(this.appRef.baseURL);
+            ncModule.$routesInitialized.subscribe((initialized) => {
+                if (initialized) {
+                    ncModule.routes.forEach((route) =>
+                        this._initializeRoute(route)
+                    );
 
-                const classMembers = getClassMembers(route.route);
-                Object.keys(classMembers).forEach((classMember) => {
-                    if (classMembers[classMember] === 'function') {
-                        const routeDefined = Reflect.hasMetadata(
+                    if (Object.keys(ncModule.imports).length > 0) {
+                        this._initializeRoutes(ncModule.imports);
+                    }
+                }
+            });
+        });
+    }
+
+    private _initializeRoute(route: Route, moduleBaseURL?: string) {
+        console.log(route);
+        route.setModuleBaseRoute(moduleBaseURL);
+        route.setAppBaseRoute(this.appRef.baseURL);
+
+        const classMembers = getClassMembers(route.route);
+        Object.keys(classMembers).forEach((classMember) => {
+            if (classMembers[classMember] === 'function') {
+                const routeDefined = Reflect.hasMetadata(
+                    GetMetadataKey,
+                    route.route.prototype[classMember]
+                );
+
+                if (routeDefined) {
+                    const methodRoute = [
+                        ...route.path,
+                        getMetadata(
                             GetMetadataKey,
                             route.route.prototype[classMember]
-                        );
+                        ),
+                    ]
+                        .filter((segment) => segment.length > 0)
+                        .join('/');
 
-                        if (routeDefined) {
-                            const methodRoute = [
-                                ...route.path,
-                                getMetadata(
-                                    GetMetadataKey,
-                                    route.route.prototype[classMember]
-                                ),
-                            ]
-                                .filter((segment) => segment.length > 0)
-                                .join('/');
+                    console.log('Mapped route ' + methodRoute + '.');
 
-                            this.appExpress.get(
-                                methodRoute,
-                                (req: Request, res: Response) => {
-                                    console.log(req, res);
-                                }
-                            );
+                    this.appExpress = this.appExpress.get(
+                        methodRoute,
+                        //@ts-ignore
+                        (req: Request, res: Response) => {
+                            res.status(200).send({
+                                hello: 'world',
+                            });
                         }
-                    }
-                });
-            });
-
-            if (ncModule.imports) {
-                this._initializeRoutes(ncModule.imports);
+                    );
+                }
             }
         });
     }

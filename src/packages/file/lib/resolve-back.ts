@@ -69,7 +69,7 @@ export function resolveBack(
     pathOrThrowError?: string | boolean,
     throwError?: boolean
 ): string | undefined {
-    let path: string;
+    let path: string | undefined;
 
     if (typeof pathOrThrowError === 'string') {
         path = pathOrThrowError;

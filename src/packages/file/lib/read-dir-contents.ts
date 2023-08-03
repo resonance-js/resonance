@@ -28,10 +28,10 @@ export function readDirContentsSync<T = any>(
  */
 export function readDirContentsSync<T>(
     ...pathSegments: (string | ReadDirContentsOptions)[]
-): T[] | Record<string, T | undefined> {
+): (T | undefined)[] | Record<string, T | undefined> {
     const pathOrOpts = pathSegments.shift();
 
-    let opts: ReadDirContentsOptions;
+    let opts: ReadDirContentsOptions | undefined;
     let path: string[];
 
     if (typeof pathOrOpts === 'string') {
@@ -47,10 +47,7 @@ export function readDirContentsSync<T>(
         toReturn[f] = readFileSync<T>(dirPath, f);
 
         if (!toReturn[f]) {
-            console.error(
-                new console.error(),
-                `Could not read file at ${resolve(dirPath, f)}`
-            );
+            console.error(`Could not read file at ${resolve(dirPath, f)}`);
         }
     });
 

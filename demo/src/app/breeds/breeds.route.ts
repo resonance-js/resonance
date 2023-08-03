@@ -1,6 +1,5 @@
-import { Get } from '@nestjs/common';
 import { of } from 'rxjs';
-import { Route } from '@resonance/core';
+import { Get, Route } from '@resonance/core';
 import { BreedsService } from './breeds.service';
 
 @Route('breed')

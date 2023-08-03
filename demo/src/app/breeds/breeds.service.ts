@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
 import { of, map } from 'rxjs';
-import { HttpResponse } from '@resonance/core';
+import { HttpResponse, Injectable } from '@resonance/core';
 import { As } from '@resonance/cxjs';
 
 @Injectable()

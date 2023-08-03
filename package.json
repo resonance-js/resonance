@@ -4,15 +4,15 @@
   "description": "A reactive framework for building node servers.",
   "main": "index.js",
   "workspaces": [
-    "./src/packages/core",
-    "./src/packages/cxjs",
-    "./src/packages/file"
+    "./dist/core",
+    "./dist/cxjs",
+    "./dist/file"
   ],
   "scripts": {
     "test": "jest",
     "build:cxjs:watch": "cd src/packages/cxjs;npx tsc --watch",
     "build:file:watch": "cd src/packages/file;npx tsc --watch",
-    "build:resonance:watch": "cd src/packages/resonance;npx tsc --watch"
+    "build:core:watch": "cd src/packages/core;npx tsc --watch"
   },
   "author": "Alexander Porrello",
   "license": "ISC",
@@ -23,6 +23,8 @@
   "devDependencies": {
     "@types/express": "^4.17.17",
     "@types/jest": "^29.5.3",
+    "@types/node": "^20.4.6",
+    "@types/webpack": "^5.28.1",
     "eslint": "^8.46.0",
     "eslint-config-prettier": "^8.9.0",
     "eslint-plugin-prettier": "^5.0.0",
@@ -34,6 +36,8 @@
     "ts-loader": "^9.4.4",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "webpack-node-externals": "^3.0.0",
+    "webpack-cli": "^5.1.4"
   }
 }

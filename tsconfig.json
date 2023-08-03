@@ -6,12 +6,8 @@
         "emitDecoratorMetadata": true,
         "module": "commonjs",
         "outDir": "./dist",
+        "resolveJsonModule": true,
         // "baseUrl": "./" /* Specify the base directory to resolve non-relative module names. */,
-        // "paths": {
-        //     "@resonance/core": ["./src/packages/core"],
-        //     "@resonance/cxjs": ["./src/packages/cxjs"],
-        //     "@resonance/file": ["./src/packages/file"]
-        // },
         "types": ["reflect-metadata", "jest"],
         "declaration": true /* Generate .d.ts files from TypeScript and JavaScript files in your project. */,
         "declarationMap": true /* Create sourcemaps for d.ts files. */,
@@ -36,6 +32,11 @@
         "noPropertyAccessFromIndexSignature": true /* Enforces using indexed accessors for keys declared using an indexed type. */,
         "skipLibCheck": true /* Skip type checking all .d.ts files. */
     },
-    "include": ["src/**/*.ts"],
-    "exclude": ["src/packages/core/test"]
+    "include": ["src/**/*.ts", "src/**/package.json"],
+    "exclude": [
+        "node_modules",
+        "**/dist",
+        "**/*.spec.ts",
+        "**/webpack.config.ts"
+    ]
 }
