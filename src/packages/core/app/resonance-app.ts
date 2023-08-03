@@ -1,102 +1,139 @@
-import { Observable, Subject, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import {
-    InjectableCatalog,
-    ModuleCatalog,
-} from '../di/catalogs';
-import { getClassName } from '../di/util/reflect';
-import { Class } from '../interface/class';
+    Server as SecureServer,
+    createServer as createSecureServer,
+} from 'https';
+import { Server, createServer } from 'http';
+
 import { ResonanceConfig } from './resonance-config';
+import { Class } from '../interface/class';
+import { Module, ModuleCatalog } from '../di/module';
+import { NcLogger } from '../log/logger';
+import { getClassName } from '../di/util/reflect';
+import { green } from '../log/colorize';
+import {
+    $bootstrapped,
+    $routesInitialized,
+    $serverInitialized,
+} from './lifecycle';
+import { NcRouter } from '../http/router';
 
-import express from 'express';
-import { $log, NcLogger } from '../log/logger';
-import { InjectableNode } from '../di/interface';
-
-new NcLogger('ResonanceApp');
-
-export const onBootstrap = new Subject<void>();
+const console = new NcLogger('ResonanceApp');
 
 export class Resonance {
-    private _app = express();
+    public appRef!: Module;
 
-    private _$onListen = new Subject<void>();
-    private _listenSubscription = this._$onListen
-        .pipe(
-            tap(() =>
-                $log.next('Resonance is listening on port ' + this._config.port)
-            )
-        )
-        .subscribe();
+    public appServer?: Server | SecureServer;
+    public router!: NcRouter;
 
     constructor(private _config: ResonanceConfig) {}
 
-    boostrap(appModule: Class) {
-        const className = getClassName(appModule);
-        const rootModule = ModuleCatalog.get(className);
+    boostrap(rootAppModule: Class) {
+        this._bootstrap(rootAppModule);
+        $bootstrapped.next(true);
+        $bootstrapped.complete();
 
-        // console.log(ModuleCatalog);
+        this._initializeRoutes();
+        $routesInitialized.next(true);
+        $routesInitialized.complete();
 
-        // rootModule?.imports?.forEach((imprt) => {
-        // console.log(ModuleCatalog.get(imprt));
-        // });
-
-        this._compileInjectables();
-        onBootstrap.next();
-        this._createExpressServer();
+        return this._initializeServer().pipe(
+            tap(() => {
+                $serverInitialized.next(true);
+                $serverInitialized.complete();
+            })
+        );
     }
 
-    private _compileInjectables() {
-        const hasDependencies: InjectableNode[] = [];
-        const initialized: string[] = [];
+    private _bootstrap(appModule: Class) {
+        const rootModuleName = getClassName(appModule);
 
-        InjectableCatalog.forEach((node, key) => {
-            if (node.dependencies.length > 0) {
-                hasDependencies.push(node);
-            } else {
-                node.instance = new node.class();
-                $log.next(getClassName(node.class) + ' Initialized');
-                initialized.push(key);
-            }
-        });
+        const appRef = ModuleCatalog.get(rootModuleName);
 
-        hasDependencies.forEach((node) => {
-            const depsInitialized = node.dependencies.every((dep) => {
-                return initialized.includes(dep);
+        if (appRef === undefined) {
+            throw new Error(
+                `Failed to initialize Resonance app root module ${rootModuleName}. Are you sure you provided the root module too bootstrap?`
+            );
+        }
+
+        this.appRef = appRef;
+    }
+
+    private _initializeRoutes(modules?: Map<string, Module>) {
+        this.router = new NcRouter(this.appRef.baseURL);
+
+        (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
+            ncModule.$onInit.next$.subscribe(() => {
+                ncModule.routes.forEach((route) => {
+                    this.router.initializeRoute(route);
+                });
+
+                if (Object.keys(ncModule.imports).length > 0) {
+                    this._initializeRoutes(ncModule.imports);
+                }
             });
-
-            // One issue where having here is that if
-            // serviceA --> serviceB
-            // serviceB --> has deps
-            // serviceA cannot be initialized before serviceB. Ugh.
-            // I think we need an actual dependency tree that just lists
-            // the names of dependencies that we climb down to initialize the app.
-            if (depsInitialized) {
-                const args = node.dependencies.map(
-                    (depName) => InjectableCatalog.get(depName)?.instance
-                );
-                node.instance = new node.class(...args);
-                $log.next(getClassName(node.class) + ' Initialized');
-                initialized.push(getClassName(node.class));
-            } else {
-                throw new Error(
-                    'Failed to initialize dependency for ' +
-                        getClassName(node.class)
-                );
-            }
         });
     }
 
-    private _createExpressServer() {
-        this._config.backlog
-            ? this._app.listen(
-                  this._config.port,
-                  this._config.hostname ?? 'localhost',
-                  this._config.backlog,
-                  () => this._$onListen.next()
-              )
-            : this._app.listen(
-                  this._config.port,
-                  this._config.hostname ?? 'localhost',
-                  () => this._$onListen.next()
-              );
+    private _initializeServer() {
+        return new Observable<string>((observer) => {
+            const callback = () => {
+                observer.next(
+                    green(
+                        'Resonance is listening on port ' +
+                            this._config.port +
+                            '.'
+                    )
+                );
+                observer.complete();
+            };
+
+            this.router.appExpress.get('/api');
+
+            const server = this._config.credentials
+                ? createSecureServer(this.router.appExpress)
+                : createServer(this.router.appExpress);
+
+            this.appServer =
+                this._config.backlog !== undefined
+                    ? server.listen(
+                          this._config.port,
+                          this._config.hostname ?? 'localhost',
+                          this._config.backlog,
+                          () => callback()
+                      )
+                    : server.listen(
+                          this._config.port,
+                          this._config.hostname ?? 'localhost',
+                          () => callback()
+                      );
+        }).pipe(
+            tap((msg) => {
+                console.log(msg);
+            })
+        );
+    }
+
+    public exit() {
+        return new Observable<string>((observer) => {
+            if (this.appServer)
+                this.appServer.close((err) => {
+                    if (err) {
+                        observer.error(err);
+                    } else {
+                        this.appServer?.closeAllConnections();
+                        observer.next(
+                            'Resonance exited for connection on port ' +
+                                this._config.port
+                        );
+                        observer.complete();
+                    }
+                });
+            else {
+                observer.error(
+                    'Failed to exit Resonance, as it was never started.'
+                );
+            }
+        });
     }
 }

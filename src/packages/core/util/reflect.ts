@@ -33,3 +33,27 @@ export const getAllMetadata = (target: object) => {
     );
     return metadata;
 };
+
+export const getClassMembers = (target: any) => {
+    const toReturn: { [name: string | symbol]: any } = {};
+
+    if (target.prototype) {
+        Reflect.ownKeys(target.prototype).forEach((classMember) => {
+            toReturn[classMember] = typeof target.prototype[classMember];
+        });
+    }
+
+    return toReturn;
+};
+
+export const getFunctionParameters = (target: any) => {
+    const toReturn: { [name: string | symbol]: any } = {};
+
+    if (target) {
+        Reflect.ownKeys(target).forEach((parameters) => {
+            toReturn[parameters] = typeof target[parameters];
+        });
+    }
+
+    return toReturn;
+};

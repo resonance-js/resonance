@@ -1,131 +1,114 @@
-import { Subject, concatMap, map, merge, of } from 'rxjs';
+import { Subject, map, merge } from 'rxjs';
 import { isDate } from 'util/types';
-import { Colorize } from './colorize';
+import { green, yellow, gray, red, cyan, magenta } from './colorize';
 
-export const $log = new Subject<any>();
-export const $error = new Subject<any>();
-export const $verbose = new Subject<any>();
-export const $debug = new Subject<any>();
+/**
+ * When printing objects, indent each line by the width of the boilerplate string.
+ */
+const objectSpace = '\n' + new Array<string>(57).fill(' ').join('');
 
-const logger = merge(
-    $log.pipe(
-        map((log) => ({
-            type: 'log',
-            message: log,
-            statement: 'LOG    '
-        }))
-    ),
-    $error.pipe(
-        map((log) => ({
-            type: 'error',
-            message: log,
-            statement: 'ERROR  '
-        }))
-    ),
-    $verbose.pipe(
-        map((log) => ({
-            type: 'verbose',
-            message: log,
-            statement: 'VERBOSE'
-        }))
-    ),
-    $debug.pipe(
-        map((log) => ({
-            type: 'debug',
-            message: log,
-            statement: 'DEBUG  '
-        }))
-    )
-).pipe(
-    concatMap((message) => {
-        try {
-            switch (typeof message.message) {
-                case 'object':
-                    if (isDate(message.message)) {
-                        message.message = message.message.toISOString();
-                        break;
-                    }
+const now = () => {
+    const date = new Date();
+    return `${
+        date.getMonth() + 1
+    }/${date.getDate()}/${date.getFullYear()},${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+};
 
-                    message.message = message.message;
-            }
-        } catch {}
-
-        return of(message).pipe(
-            concatMap((message) =>
-                of(message).pipe(
-                    map((message) => {
-                        const date = new Date();
-                        const dateStr =
-                            [
-                                date.getMonth() + 1,
-                                date.getDate(),
-                                date.getFullYear()
-                            ].join('/') +
-                            ', ' +
-                            [
-                                date.getHours(),
-                                date.getMinutes(),
-                                date.getSeconds()
-                            ].join(':');
-                        switch (message.type) {
-                            case 'error':
-                                return [dateStr, Colorize.red('ERROR  ')];
-                            case 'verbose':
-                                return [
-                                    dateStr,
-                                    Colorize.cyanBright('VERBOSE')
-                                ];
-                            case 'debug':
-                                return [
-                                    dateStr,
-                                    Colorize.magentaBright('DEBUG  ')
-                                ];
-                            default:
-                                return [dateStr, Colorize.green('LOG    ')];
-                        }
-                    })
-                )
-            ),
-            map((logMsg) => ({
-                type: message.type,
-                message: [...logMsg, message.message]
-            }))
-        );
-    })
-);
+const applicationTag = green('[Resonance]');
 
 export class NcLogger {
-    constructor(private _context?: string) {
-        logger.subscribe((message) => {
-            const msg = message.message.pop();
-            const toLog = [
-                Colorize.green('[Resonance]'),
-                ...message.message,
-                Colorize.yellow('[' + this._context + ']')
-            ];
+    $log = new Subject<any>();
+    $error = new Subject<any>();
+    $verbose = new Subject<any>();
+    $debug = new Subject<any>();
 
-            let logAsObject = false;
+    constructor(private _context = 'ResonanceApp') {
+        this._context = yellow('[' + this._context + ']');
 
-            if (typeof msg === 'object') {
-                logAsObject = true;
-            } else {
-                toLog.push(msg);
-            }
-
+        this._logger$.subscribe((message) => {
             switch (message.type) {
                 case 'error':
-                    console.error(toLog.join('   '));
+                    console.error(message.statement.join('  '));
                     break;
                 case 'debug':
-                    console.debug(toLog.join('   '));
+                    console.debug(message.statement.join('  '));
                     break;
                 default:
-                    console.log(toLog.join('   '));
-            }
-
-            if (logAsObject) {
-                console.log(msg);
+                    console.log(message.statement.join('  '));
             }
         });
     }
+
+    public log(...msg: any[]) {
+        msg.forEach((msg) => this.$log.next(msg));
+    }
+
+    public error(...msg: any[]) {
+        msg.forEach((msg) => this.$error.next(msg));
+    }
+
+    public verbose(...msg: any[]) {
+        msg.forEach((msg) => this.$verbose.next(msg));
+    }
+
+    public debug(...msg: any[]) {
+        msg.forEach((msg) => this.$debug.next(msg));
+    }
+
+    private _logger$ = merge(
+        this.$log.pipe(
+            map((log) => ({
+                type: 'log',
+                message: log,
+                statement: [green('__LOG__')],
+            }))
+        ),
+        this.$error.pipe(
+            map((log) => ({
+                type: 'error',
+                message: log,
+                statement: [red('_ERROR_')],
+            }))
+        ),
+        this.$verbose.pipe(
+            map((log) => ({
+                type: 'verbose',
+                message: log,
+                statement: [cyan('VERBOSE')],
+            }))
+        ),
+        this.$debug.pipe(
+            map((log) => ({
+                type: 'debug',
+                message: log,
+                statement: [magenta('_DEBUG_')],
+            }))
+        )
+    ).pipe(
+        map((log) => {
+            log.statement.unshift(applicationTag, now());
+            log.statement.push(this._context);
+
+            if (typeof log.message === 'object') {
+                if (isDate(log.message)) {
+                    log.statement.push(log.message.toISOString());
+                } else {
+                    try {
+                        log.statement.push(
+                            JSON.stringify(log.message, null, 4)
+                                .replace(/(\[|\]|\,)/g, gray('$1'))
+                                .replace(/(\"(.){1,}\")/g, yellow('$1'))
+                                .replace(/\n/g, objectSpace)
+                        );
+                    } catch {
+                        log.statement.push(log.message);
+                    }
+                }
+            } else {
+                log.statement.push(log.message);
+            }
+
+            return log;
+        })
+    );
 }

@@ -1,93 +1,146 @@
-import { Injectable } from '../di/injectable';
-import { NcModule } from '../di/module';
+import { map, of } from 'rxjs';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { NcModule } from '../di/decorators/module.decorator';
+import { Route } from '../di/decorators/route.decorator';
+import { Get } from '../http/decorators/get.decorator';
+import { As } from '../../cxjs';
+import { HttpResponse } from '../http/interface/http-response';
+import { $bootstrapped } from './lifecycle';
+import { Resonance } from './resonance-app';
 
-@Injectable()
-export class LightsaberService {
-    constructor() {}
-
-    public activate() {}
-
-    public deactivate() {}
-}
-
-@Injectable()
-export class Blaster {
-    constructor() {}
-
-    public shoot() {}
-}
-
-@NcModule({
-    baseURL: '',
-    declarations: [LightsaberService, Blaster],
-    exports: [LightsaberService, Blaster],
-})
-export class WeaponsModule {}
-
-@Injectable()
-export class TheForceService {
-    constructor() {}
-
-    public push() {}
-
-    public pull() {}
-}
-
-export interface Jedi {
+interface Breed {
     name: string;
-    height: string;
-    age: number;
-    saberColor: 'blue' | 'green' | 'purple' | 'white';
+    primaryColor: string;
+    secondaryColor?: string;
+    coat: 'fur' | 'hair';
+    averageHeight?: number;
+    averageWeight?: number;
 }
 
 @Injectable()
-export class JediService {
-    private _jedi: Jedi[] = [];
+class BreedsService {
+    public breeds: Breed[] = [
+        {
+            name: 'German Shepheard',
+            primaryColor: 'brown',
+            secondaryColor: 'black',
+            coat: 'hair',
+        },
+        {
+            name: 'Bulldog',
+            primaryColor: 'white',
+            secondaryColor: 'brown',
+            coat: 'hair',
+        },
+        {
+            name: 'Golden Retreiver',
+            primaryColor: 'yellow',
+            coat: 'fur',
+        },
+        {
+            name: 'Siberian Husky',
+            primaryColor: 'black',
+            secondaryColor: 'white',
+            coat: 'fur',
+        },
+    ];
 
-    constructor(private _forceService: TheForceService) {}
+    constructor() {}
 
-    public addJedi(
-        name: string,
-        height: string,
-        age: number,
-        saberColor: 'blue' | 'green' | 'purple' | 'white'
-    ) {
-        this._jedi.push({
-            name,
-            height,
-            age,
-            saberColor,
+    addBreed(breed: Breed) {
+        this.breeds.push(breed);
+    }
+
+    removeBreed(name: string) {
+        this.breeds.splice(
+            this.breeds.findIndex((breed) => breed.name === name),
+            1
+        );
+    }
+
+    getBreed(name: string) {
+        of(this.breeds.find((breed) => breed.name === name)).pipe(
+            map((breed) => {
+                if (breed === undefined) {
+                    throw As<HttpResponse>({
+                        status: 404,
+                        message: 'Breed with name ' + name + ' not found.',
+                    });
+                }
+
+                breed;
+            })
+        );
+    }
+}
+
+@Route('breed')
+class BreedsRoute {
+    constructor(private _breedsService: BreedsService) {
+        this._breedsService.addBreed({
+            name: 'chihuahua',
+            coat: 'hair',
+            primaryColor: 'brown',
+            secondaryColor: 'white',
         });
     }
 
-    public removeJedi(name: string) {
-        const index = this._jedi.findIndex((jedi) => jedi.name === name);
+    @Get()
+    public getAllBreeds() {
+        return this._breedsService.breeds;
+    }
 
-        if (index !== undefined) {
-            this._jedi.splice(index, 1);
-        }
+    @Get(':name')
+    public getBreed(name: string) {
+        this._breedsService.getBreed(name);
+    }
+
+    @Get(':colors')
+    public getBreedColors() {
+        return of(
+            this._breedsService.breeds.map((breed) => breed.primaryColor)
+        );
     }
 }
 
-@Injectable()
-export class SithService {
-    constructor(private _forceService: TheForceService) {}
-}
+@NcModule({
+    baseURL: 'breeds',
+    declarations: [BreedsService],
+    exports: [BreedsService],
+    routes: [BreedsRoute],
+})
+class BreedsModule {}
 
 @NcModule({
-    baseURL: 'force-user',
-    declarations: [TheForceService, JediService, SithService],
-    exports: [JediService, SithService],
-    imports: [WeaponsModule],
+    baseURL: 'api',
+    imports: [BreedsModule],
 })
-export class ForceUserModule {}
+class AppModule {}
 
-@Injectable()
-export class AppService {}
+describe('Resonance app compiler', () => {
+    let app = new Resonance({
+        port: 3002,
+    });
 
-// @NcModule({
-//     baseURL: 'api',
-//     declarations: [AppService],
+    beforeAll((done) => {
+        app.boostrap(AppModule).subscribe((val) => {
+            expect(val.includes('Resonance is listening')).toEqual(true);
+            done();
+        });
+    });
 
-// })
-describe('Resonance app compiler', () => {});
+    test('Expect $bootstrapped to return true.', () => {
+        expect($bootstrapped.value).toEqual(true);
+    });
+
+    test('Expect $serverInitialized to return true.', () => {
+        expect($bootstrapped.value).toEqual(true);
+    });
+
+    afterAll((done) => {
+        app.exit().subscribe((val) => {
+            expect(val.startsWith('Resonance exited')).toEqual(true);
+            done();
+        });
+    });
+});

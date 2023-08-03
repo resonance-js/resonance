@@ -2,5 +2,8 @@ export interface ResonanceConfig {
     port: number;
     hostname?: string;
     backlog?: number;
-    baseURL?: string;
+    credentials?: {
+        key: string;
+        cert: string;
+    };
 }

@@ -1,130 +1,121 @@
-import { getInjectedClassName, getInjectedProvidedIn } from './injectable';
-import { getMetadata, setMetadata } from '../util/reflect';
+import { Subject, concatMap, forkJoin, map, take } from 'rxjs';
 import { Class } from '../interface/class';
-import { RouteMetadataKey, RouteNameMetadataKey } from './route';
-import { getClassName, getInjectedDeps } from './util/reflect';
-import { DependencyTree, InjectableNode, RoutesNode } from './interface';
-import { InjectableCatalog, ModuleCatalog } from './catalogs';
-import { onBootstrap } from '../app/resonance-app';
+import { NcModule } from './decorators/module.decorator';
+import { getClassName } from './util/reflect';
+import { Service, ServiceCatalog } from './service';
+import { Route, RouteCatalog } from './route';
+import { ReactiveSubject } from '../util';
 
-export const ModuleMetadataKey = 'resonance:module';
-export const ModuleBaseUrlKey = 'resonance:baseurl';
+class _ModuleCatalog extends Map<string, Module> {
+    public onSet = new Subject<{
+        moduleName: string;
+        instance: Module;
+    }>();
 
-export class Module {
-    private _unresolved: string[] = [];
-    private _imports: Module[] = [];
-
-    /// Let's do a final check if there are any unresolved modules
-    /// and initialize them if they are or throw an error.
-    finalCheck = onBootstrap.asObservable().subscribe({
-        next: () => {
-            console.log('bootstrapped');
-        }
-    });
-
-    constructor(
-        public instance: Class,
-        public declarations?: DependencyTree,
-        public imports?: string[],
-        public exports?: DependencyTree,
-        public routes?: DependencyTree,
-        public baseURL?: string
-    ) {
-        if (imports) {
-            imports.forEach((imprt) => {
-                const _imprt = ModuleCatalog.get(imprt);
-                if (_imprt) {
-                    this._imports.push(_imprt);
-                } else {
-                    this._unresolved.push(imprt);
-                }
-            });
-        }
+    override set(key: string, module: Module) {
+        super.set(key, module);
+        this.onSet.next({
+            moduleName: key,
+            instance: module,
+        });
+        return this;
     }
 }
 
-export interface NcModule {
-    routes?: Array<Class>;
-    declarations?: Array<Class>;
-    exports?: Array<Class>;
-    imports?: Array<Class>;
-    baseURL?: string;
-}
+export const ModuleCatalog = new _ModuleCatalog();
 
-export const NcModule = (module: NcModule) => {
-    return function (instance: Class) {
-        const moduleName = getClassName(instance);
+export class Module {
+    public name: string;
+    public baseURL: string | undefined;
+    public instance: Class;
+    public routes = new Map<string, Route>();
+    public declarations = new Map<string, Service>();
+    public exports = new Map<string, Service>();
+    public imports = new Map<string, Module>();
 
-        setMetadata(ModuleMetadataKey, moduleName, instance);
-        setMetadata(ModuleBaseUrlKey, module.baseURL, instance);
+    public $onInit = new ReactiveSubject<boolean>();
 
-        const injectableTree = buildInjectableTree(
-            moduleName,
-            module.declarations,
-            module.exports
-        );
+    constructor(
+        public klass: Class,
+        ncModule: NcModule
+    ) {
+        this.name = getClassName(klass);
+        this.baseURL = ncModule.baseURL;
+        this.instance = new klass();
+        this.imports = this._processImports(ncModule.imports);
 
-        ModuleCatalog.set(
-            moduleName,
-            new Module(
-                instance,
-                injectableTree.declarationsTree,
-                buildImportsTree(module.imports),
-                injectableTree.exportsTree,
-                buildRoutesTree(module.routes),
-                module.baseURL
+        forkJoin(
+            this._initializeDeclarations(
+                ncModule.declarations,
+                Object.values(ncModule.exports ?? []).map(
+                    (exprt) => exprt.prototype.name
+                )
             )
-        );
-    };
-};
+        )
+            .pipe(
+                concatMap(() =>
+                    forkJoin(this._initializeRoutes(ncModule.routes))
+                )
+            )
+            .subscribe(() => {
+                this.$onInit.next(true);
+            });
+    }
 
-export const buildInjectableTree = (
-    moduleName: string,
-    declarations?: Class[],
-    exprts?: Class[]
-) => {
-    const declarationsTree: Record<string, InjectableNode> = {};
-    const exportsTree: Record<string, InjectableNode> = {};
+    private _processImports(imports: Class[] = []) {
+        const toReturn = new Map<string, Module>();
+        imports.forEach((imprt) => {
+            const moduleName = getClassName(imprt);
+            const module = ModuleCatalog.get(moduleName);
+            if (module) {
+                toReturn.set(moduleName, module);
+            }
+        });
+        return toReturn;
+    }
 
-    const exported = (exprts ?? []).map((exprt) => getInjectedClassName(exprt));
-    (declarations ?? []).forEach((instance) => {
-        const node: InjectableNode = {
-            class: instance,
-            moduleName,
-            dependencies: getInjectedDeps(instance),
-            providedIn: getInjectedProvidedIn(instance)
-        };
+    private _initializeDeclarations(
+        declarations: Class[] = [],
+        exports: string[] = []
+    ) {
+        return declarations.map((serviceKlass, index) => {
+            const serviceName = serviceKlass.prototype.name;
+            const service = ServiceCatalog.get(serviceName);
 
-        const injectableName = getInjectedClassName(instance);
-        InjectableCatalog.set(injectableName, node);
-        exported.includes(injectableName)
-            ? (exportsTree[injectableName] = node)
-            : (declarationsTree[injectableName] = node);
-    });
-    return {
-        exportsTree,
-        declarationsTree
-    };
-};
+            if (service === undefined) {
+                throw new Error(
+                    `Failed to initialize declaration ${serviceName} for module ${this.name} at index ${index}. ` +
+                        `Did you decorate ${serviceName} with @Service()?`
+                );
+            }
 
-export const buildRoutesTree = (routes?: Class[]) => {
-    const routeTree: Record<string, RoutesNode> = {};
-    (routes ?? []).forEach((route) => {
-        routeTree[getMetadata(RouteNameMetadataKey, route)] = {
-            class: route,
-            dependencies: getInjectedDeps(route),
-            route: getMetadata(RouteMetadataKey, route)
-        };
-    });
-    return routeTree;
-};
+            return service.$onInit.next$.pipe(
+                take(1),
+                map(() =>
+                    exports.includes(serviceName)
+                        ? this.exports.set(serviceName, service)
+                        : this.declarations.set(serviceName, service)
+                )
+            );
+        });
+    }
 
-export const buildImportsTree = (imports?: Class[]) => {
-    const importsTree: string[] = [];
+    private _initializeRoutes(routes: Class[] = []) {
+        return routes.map((routeKlass, index) => {
+            const routeName = routeKlass.prototype.name;
+            const route = RouteCatalog.get(routeName);
 
-    (imports ?? []).forEach((instance) => {
-        importsTree.push(getMetadata(ModuleMetadataKey, instance));
-    });
+            if (route === undefined) {
+                throw new Error(
+                    `Failed to initialize route ${routeName} for module ${this.name} at index ${index}. ` +
+                        `Did you decorate ${routeName} with @Route()?`
+                );
+            }
 
-    return importsTree;
-};
+            return route.$onInit.next$.pipe(
+                take(1),
+                map(() => this.routes.set(routeName, route))
+            );
+        });
+    }
+}

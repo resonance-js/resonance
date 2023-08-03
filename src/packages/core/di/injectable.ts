@@ -1,35 +1,58 @@
+import { forkJoin, map, of, take } from 'rxjs';
 import { Class } from '../interface/class';
-import { getMetadata } from '../util/reflect';
-import { InjectableCatalog } from './catalogs';
-import { getClassName } from './util/reflect';
+import { ReactiveSubject } from '../util';
 
-/** The name of the injected class. */
-export const InjectableMetadataKey = 'resonance:injectable';
+export abstract class Injectable {
+    public dependencies: Injectable[] = [];
+    public instance?: Class;
 
-/** The providedIn of the injected class. */
-export const ProvidedInMetadataKey = 'resonance:providedin';
+    public $onInit = new ReactiveSubject<boolean>();
 
-/**
- * Injectable decorator and metadata.
- */
-export const Injectable = (opts?: { providedIn: 'root' | 'module' | null }) => {
-    return (constructor: Class) => {
-        InjectableCatalog.set(getClassName(constructor), constructor);
-        Reflect.defineMetadata(
-            InjectableMetadataKey,
-            getClassName(constructor),
-            constructor
+    constructor(
+        public klass: Class,
+        public name: string,
+        public injectableType: string
+    ) {}
+
+    public init() {
+        this.dependencies = (this.klass.prototype.injected as string[]).map(
+            (dependencyName, index) =>
+                this._loadDependencyFromCatalog(dependencyName, index)
         );
-        Reflect.defineMetadata(
-            ProvidedInMetadataKey,
-            opts?.providedIn ?? 'module',
-            constructor
+
+        this._injectDependencies().subscribe(() => this.$onInit.next(true));
+    }
+
+    protected abstract _loadDependencyFromCatalog(
+        dependencyName: string,
+        index: number
+    ): Injectable;
+
+    private _injectDependencies() {
+        if (this.dependencies.length === 0) {
+            this.instance = new this.klass();
+            return of(true);
+        }
+
+        return forkJoin(
+            this.dependencies.map((dep) => dep.$onInit.next$.pipe(take(1)))
+        ).pipe(
+            map(() => {
+                const args = this.dependencies.map(
+                    (service) => service.instance
+                );
+
+                if (args.includes(undefined)) {
+                    throw new Error(
+                        `Failed to resolve dependency for ${
+                            this.injectableType
+                        } ${this.name}  at index ${args.indexOf(undefined)}`
+                    );
+                }
+
+                this.instance = new this.klass(...args);
+                return true;
+            })
         );
-    };
-};
-
-export const getInjectedClassName = (instance: Class) =>
-    getMetadata(InjectableMetadataKey, instance);
-
-export const getInjectedProvidedIn = (instance: Class) =>
-    getMetadata(ProvidedInMetadataKey, instance);
+    }
+}

@@ -1,3 +1,3 @@
 export function isNotNull<T>(val: T): val is NonNullable<T> {
-    return val != null;
+    return val !== null;
 }
