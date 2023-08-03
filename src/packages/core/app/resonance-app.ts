@@ -1,11 +1,11 @@
 import { Observable, tap } from 'rxjs';
-import { ResonanceConfig } from './resonance-config';
 import {
     Server as SecureServer,
     createServer as createSecureServer,
 } from 'https';
 import { Server, createServer } from 'http';
 
+import { ResonanceConfig } from './resonance-config';
 import { Class } from '../interface/class';
 import { Module, ModuleCatalog } from '../di/module';
 import { NcLogger } from '../log/logger';
@@ -17,7 +17,6 @@ import {
     $serverInitialized,
 } from './lifecycle';
 import { NcRouter } from '../http/router';
-import { Route } from '../di/route';
 
 const console = new NcLogger('ResonanceApp');
 
@@ -59,8 +58,6 @@ export class Resonance {
 
         this.appRef = appRef;
     }
-
-    public routes: Route[] = [];
 
     private _initializeRoutes(modules?: Map<string, Module>) {
         this.router = new NcRouter(this.appRef.baseURL);
