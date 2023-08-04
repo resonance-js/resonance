@@ -36,12 +36,12 @@ export class Module {
     public $onInit = new ReactiveSubject<boolean>();
 
     constructor(
-        public klass: Class,
+        public reference: Class,
         ncModule: NcModule
     ) {
-        this.name = getClassName(klass);
+        this.name = getClassName(reference);
         this.baseURL = ncModule.baseURL;
-        this.instance = new klass();
+        this.instance = new reference();
         this.imports = this._processImports(ncModule.imports);
 
         forkJoin(
@@ -78,8 +78,8 @@ export class Module {
         declarations: Class[] = [],
         exports: string[] = []
     ) {
-        return declarations.map((serviceKlass, index) => {
-            const serviceName = serviceKlass.prototype.name;
+        return declarations.map((serviceReference, index) => {
+            const serviceName = serviceReference.prototype.name;
             const service = ServiceCatalog.get(serviceName);
 
             if (service === undefined) {
@@ -101,8 +101,8 @@ export class Module {
     }
 
     private _initializeRoutes(routes: Class[] = []) {
-        return routes.map((routeKlass, index) => {
-            const routeName = routeKlass.prototype.name;
+        return routes.map((routeReference, index) => {
+            const routeName = routeReference.prototype.name;
             const route = RouteCatalog.get(routeName);
 
             if (route === undefined) {

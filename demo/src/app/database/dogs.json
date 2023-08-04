@@ -1,0 +1,42 @@
+[
+    {
+        "Breed": "Golden Retriever",
+        "Age": 3,
+        "Weight": 30,
+        "Color": "Golden",
+        "Size": "Large",
+        "id": 0
+    },
+    {
+        "Breed": "Poodle",
+        "Age": 2,
+        "Weight": 10,
+        "Color": "White",
+        "Size": "Small",
+        "id": 1
+    },
+    {
+        "Breed": "German Shepherd",
+        "Age": 4,
+        "Weight": 35,
+        "Color": "Black and Tan",
+        "Size": "Large",
+        "id": 2
+    },
+    {
+        "Breed": "Bulldog",
+        "Age": 5,
+        "Weight": 25,
+        "Color": "Brown",
+        "Size": "Medium",
+        "id": 3
+    },
+    {
+        "Breed": "Beagle",
+        "Age": 1,
+        "Weight": 12,
+        "Color": "Tricolor",
+        "Size": "Small",
+        "id": 4
+    }
+]

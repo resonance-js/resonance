@@ -48,13 +48,6 @@ export class ReactiveSubject<T> extends BehaviorSubject<T | null> {
      */
     public next$!: Observable<T>;
 
-    /**
-     * A cached value that might be needed for later reference.
-     * @example You are setting the height of an element and want
-     * to sometimes reference a constant value.
-     */
-    public cacheValue?: T;
-
     constructor(valueOrPipe?: T) {
         super(valueOrPipe ?? null);
         this.next$ = this.pipe(filter(isNotNull));
@@ -65,9 +58,5 @@ export class ReactiveSubject<T> extends BehaviorSubject<T | null> {
      */
     public get currentValue() {
         return this['_value'] as T;
-    }
-
-    public setCacheValue(value: T) {
-        this.cacheValue = value;
     }
 }

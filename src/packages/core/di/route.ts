@@ -11,6 +11,8 @@ import { ServiceCatalog } from './service';
 export const RouteNameMetadataKey = 'resonance:route:name';
 export const RouteMetadataKey = 'resonance:route';
 
+export type SupportedHttpMethod = 'get' | 'put' | 'post' | 'delete';
+
 class _RouteCatalog extends Map<string, Route> {
     public onChange = new Subject<Route>();
     override set(key: string, route: Route) {
@@ -24,17 +26,17 @@ export const RouteCatalog = new _RouteCatalog();
 
 export class Route extends Injectable {
     public path: string[];
-    public routeMethodTree: {
+    public routeFnTree: {
         [fnName: string]: {
-            httpMethod: string;
+            httpMethod: SupportedHttpMethod;
             parameters: {
                 [parameter: string]: string;
             };
         };
     } = {};
 
-    constructor(klass: Class, name: string, _route: string) {
-        super(klass, name, 'Route');
+    constructor(reference: Class, name: string, _route: string) {
+        super(reference, name, 'Route');
 
         this.path = [_route];
         this._buildRouteMethodTree();
@@ -57,31 +59,29 @@ export class Route extends Injectable {
     }
 
     private _buildRouteMethodTree() {
-        const functions = getClassMembers(this.klass);
+        const functions = getClassMembers(this.reference);
 
         Object.keys(functions)
             .filter((fnName) => functions[fnName] === 'function')
             .forEach((fnName) => {
                 const httpMethod = this._getHttpMethod(fnName);
                 if (httpMethod)
-                    this.routeMethodTree[fnName] = {
+                    this.routeFnTree[fnName] = {
                         httpMethod,
                         parameters: getFunctionParameters(
-                            this.klass.prototype[fnName]
+                            this.reference.prototype[fnName]
                         ),
                     };
             });
     }
 
-    private _getHttpMethod(
-        fnKey: string
-    ): 'GET' | 'PUT' | 'POST' | 'DELETE' | null {
-        const fnction = this.klass.prototype[fnKey];
+    private _getHttpMethod(fnKey: string): SupportedHttpMethod | null {
+        const fnction = this.reference.prototype[fnKey];
 
-        if (isGet(fnction)) return 'GET';
-        if (isPost(fnction)) return 'POST';
-        if (isPut(fnction)) return 'PUT';
-        if (isDelete(fnction)) return 'DELETE';
+        if (isGet(fnction)) return 'get';
+        if (isPost(fnction)) return 'post';
+        if (isPut(fnction)) return 'put';
+        if (isDelete(fnction)) return 'delete';
 
         return null;
     }

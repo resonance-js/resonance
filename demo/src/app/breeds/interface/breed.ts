@@ -1,8 +1,8 @@
 interface Breed {
-    name: string;
-    primaryColor: string;
-    secondaryColor?: string;
-    coat: 'fur' | 'hair';
-    averageHeight?: number;
-    averageWeight?: number;
+    Breed: 'Golden Retriever';
+    Age: 3;
+    Weight: 30;
+    Color: 'Golden';
+    Size: 'Large';
+    id: number;
 }

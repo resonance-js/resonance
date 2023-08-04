@@ -13,7 +13,7 @@ export const RouteMetadataKey = 'resonance:route';
 /**
  * Route decorator and metadata.
  */
-export const Route = (route: string) => {
+export const Route = (route: string = '') => {
     return (instance: Class) => {
         const routeName = getClassName(instance);
 

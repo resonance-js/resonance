@@ -14,8 +14,8 @@ class _ServiceCatalog extends Map<string, Service> {
 export const ServiceCatalog = new _ServiceCatalog();
 
 export class Service extends Injectable {
-    constructor(klass: Class, name: string) {
-        super(klass, name, 'Service');
+    constructor(reference: Class, name: string) {
+        super(reference, name, 'Service');
         this.init();
     }
 

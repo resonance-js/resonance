@@ -9,13 +9,13 @@ export abstract class Injectable {
     public $onInit = new ReactiveSubject<boolean>();
 
     constructor(
-        public klass: Class,
+        public reference: Class,
         public name: string,
         public injectableType: string
     ) {}
 
     public init() {
-        this.dependencies = (this.klass.prototype.injected as string[]).map(
+        this.dependencies = (this.reference.prototype.injected as string[]).map(
             (dependencyName, index) =>
                 this._loadDependencyFromCatalog(dependencyName, index)
         );
@@ -30,7 +30,7 @@ export abstract class Injectable {
 
     private _injectDependencies() {
         if (this.dependencies.length === 0) {
-            this.instance = new this.klass();
+            this.instance = new this.reference();
             return of(true);
         }
 
@@ -50,7 +50,7 @@ export abstract class Injectable {
                     );
                 }
 
-                this.instance = new this.klass(...args);
+                this.instance = new this.reference(...args);
                 return true;
             })
         );

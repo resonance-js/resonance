@@ -1,17 +1,14 @@
 import express, { Request, Response } from 'express';
-import { Route } from '../di/route';
-import {
-    getClassMembers,
-    getFunctionParameters,
-    getMetadata,
-} from '../util/reflect';
-import { GetMetadataKey } from './decorators';
+import { Route, SupportedHttpMethod } from '../di/route';
+import { getMetadata } from '../util/reflect';
 import { PostMetadataKey } from './decorators/post.decorator';
 import { PutMetadataKey } from './decorators/put.decorator';
 import { DeleteMetadataKey } from './decorators/delete.decorator';
-import { isObservable } from 'rxjs';
+import { catchError, filter, isObservable, throwError } from 'rxjs';
 import { isHttpErrorResponse } from './interface/http-error-response';
-import { NcLogger } from '../log';
+import { NcLogger, cyan, gray, green, yellow } from '../log';
+import { isNotNull } from '../type/not-null';
+import { GetMetadataKey } from './decorators';
 
 const console = new NcLogger('RoutesMapper');
 
@@ -24,171 +21,100 @@ export class NcRouter {
         route.setModuleBaseRoute(moduleBaseURL);
         route.setAppBaseRoute(this.baseURL);
 
-        const classMembers = getClassMembers(route.klass);
+        console.log(route.reference.prototype);
 
-        Object.keys(classMembers).forEach((classMemberKey) => {
-            switch (this._getHttpMethod(route, classMemberKey)) {
-                case 'GET':
-                    this.get(route, classMemberKey);
-                    break;
-                case 'PUT':
-                    this.put(route, classMemberKey);
-                    break;
-                case 'DELETE':
-                    this.delete(route, classMemberKey);
-                    break;
-                case 'POST':
-                    this.post(route, classMemberKey);
-                    break;
-            }
+        Object.keys(route.routeFnTree).forEach((fnName) => {
+            const parameters = route.routeFnTree[fnName].parameters;
+            const httpMethod = route.routeFnTree[fnName].httpMethod;
+            const path = this._buildPath(route, fnName, httpMethod);
+
+            this.appExpress[httpMethod](path, (req: Request, res: Response) =>
+                this._handleResponse(route, fnName, parameters, req, res)
+            );
         });
     }
 
-    private _getHttpMethod(
+    private _buildPath(
         route: Route,
-        classMemberKey: string
-    ): 'GET' | 'PUT' | 'POST' | 'DELETE' | null {
-        if (
-            typeof route.klass.prototype[classMemberKey] !== 'function' ||
-            route.instance === null ||
-            route.instance === undefined
-        )
-            return null;
-
-        if (
-            Reflect.hasMetadata(
-                GetMetadataKey,
-                route.klass.prototype[classMemberKey]
-            )
-        )
-            return 'GET';
-
-        if (
-            Reflect.hasMetadata(
-                PostMetadataKey,
-                route.klass.prototype[classMemberKey]
-            )
-        )
-            return 'POST';
-
-        if (
-            Reflect.hasMetadata(
-                PutMetadataKey,
-                route.klass.prototype[classMemberKey]
-            )
-        )
-            return 'PUT';
-
-        if (
-            Reflect.hasMetadata(
-                DeleteMetadataKey,
-                route.klass.prototype[classMemberKey]
-            )
-        )
-            return 'DELETE';
-
-        return null;
-    }
-
-    public get(route: Route, classMemberKey: string) {
-        const path = this._buildMethodRoute(
-            route,
-            classMemberKey,
-            GetMetadataKey
-        );
-
-        const parameters = getFunctionParameters(
-            route.klass.prototype[classMemberKey]
-        );
-
-        this.appExpress.get(path, (req: Request, res: Response) => {
-            this._handleResponse(route, classMemberKey, parameters, req, res);
-        });
-
-        console.log('Mapped GET to ' + path + '.');
-    }
-
-    public put(route: Route, classMemberKey: string) {
-        const path = this._buildMethodRoute(
-            route,
-            classMemberKey,
-            PutMetadataKey
-        );
-
-        const parameters = getFunctionParameters(
-            route.klass.prototype[classMemberKey]
-        );
-
-        this.appExpress.put(path, (req: Request, res: Response) => {
-            this._handleResponse(route, classMemberKey, parameters, req, res);
-        });
-
-        console.log('Mapped PUT to ' + path + '.');
-    }
-
-    public post(route: Route, classMemberKey: string) {
-        const path = this._buildMethodRoute(
-            route,
-            classMemberKey,
-            PostMetadataKey
-        );
-
-        const parameters = getFunctionParameters(
-            route.klass.prototype[classMemberKey]
-        );
-
-        this.appExpress.post(path, (req: Request, res: Response) => {
-            this._handleResponse(route, classMemberKey, parameters, req, res);
-        });
-
-        console.log('Mapped POST to ' + path + '.');
-    }
-
-    public delete(route: Route, classMemberKey: string) {
-        const path = this._buildMethodRoute(
-            route,
-            classMemberKey,
-            DeleteMetadataKey
-        );
-
-        const parameters = getFunctionParameters(
-            route.klass.prototype[classMemberKey]
-        );
-
-        this.appExpress.delete(path, (req: Request, res: Response) => {
-            this._handleResponse(route, classMemberKey, parameters, req, res);
-        });
-
-        console.log('Mapped DELETE to ' + path + '.');
-    }
-
-    private _buildMethodRoute(
-        route: Route,
-        classMemberKey: string,
-        metadataKey: string
+        fnName: string,
+        httpMethod: SupportedHttpMethod
     ) {
-        return (
+        switch (httpMethod) {
+            case 'get':
+                return this._buildFnRoute(
+                    route,
+                    fnName,
+                    GetMetadataKey,
+                    httpMethod
+                );
+            case 'put':
+                return this._buildFnRoute(
+                    route,
+                    fnName,
+                    PutMetadataKey,
+                    httpMethod
+                );
+            case 'post':
+                return this._buildFnRoute(
+                    route,
+                    fnName,
+                    PostMetadataKey,
+                    httpMethod
+                );
+            case 'delete':
+                return this._buildFnRoute(
+                    route,
+                    fnName,
+                    DeleteMetadataKey,
+                    httpMethod
+                );
+        }
+    }
+
+    private _buildFnRoute(
+        route: Route,
+        fnName: string,
+        metadataKey: string,
+        type: string
+    ) {
+        const path =
             '/' +
             [
                 ...route.path,
-                getMetadata(metadataKey, route.klass.prototype[classMemberKey]),
+                getMetadata(metadataKey, route.reference.prototype[fnName]),
             ]
                 .filter((segment) => segment.length > 0)
-                .join('/')
+                .join('/');
+
+        console.log(
+            [
+                yellow('[Mapped]'),
+                green(type.toUpperCase()),
+                cyan(path),
+                gray('=>'),
+                cyan(`${fnName}`),
+                gray(`@`),
+                cyan(route.name),
+            ].join(' ')
         );
+        return path;
     }
 
     private _handleResponse(
         route: Route,
-        classMemberKey: string,
+        fnName: string,
         parameters: Record<string, any>,
         req: Request,
         res: Response
     ) {
         let response: any;
+        res.setHeader('content-type', 'application/json');
 
         const argsKeys = Object.keys(parameters);
 
+        // TODO: fix issue where params are not applied to endpoints. Use the mapping
+        // TODO: from the param and query decorators.
+        console.log(req.params, req.query);
         if (argsKeys.length > 0) {
             const args: any[] = [];
 
@@ -201,49 +127,54 @@ export class NcRouter {
                 }
             });
 
-            response = (route.instance as any)[classMemberKey](...args);
+            response = (route.instance as any)[fnName](...args);
         } else {
-            response = (route.instance as any)[classMemberKey]();
+            response = (route.instance as any)[fnName]();
         }
 
         if (isObservable(response)) {
-            const setStatus = false;
-
-            const subscriber = response.subscribe({
-                next: (next) => {
-                    if (!setStatus) res.status(200);
-                    res.write(JSON.stringify(next));
-                },
-                error: (err) => {
-                    if (isHttpErrorResponse(err)) {
-                        res.status(err.statusCode).write(
-                            JSON.stringify({
-                                message: err.message,
-                                stack: err.stack['stack'] ?? err.stack,
-                            })
+            const subscriber = response
+                .pipe(
+                    filter(isNotNull),
+                    catchError((err) =>
+                        // TODO Instead of returning the stack, print it out here to a router log
+                        throwError(() =>
+                            isHttpErrorResponse(err)
+                                ? {
+                                      statusCode: err.statusCode,
+                                      message: err.message,
+                                      stack: err.stack['stack'] ?? err.stack,
+                                  }
+                                : {
+                                      status: 500,
+                                      message: `Something went wrong and we couldn't complete your request.`,
+                                      error: err['stack'],
+                                  }
+                        )
+                    )
+                )
+                .subscribe({
+                    next: (next) => {
+                        res.write(JSON.stringify(next));
+                    },
+                    error: (err) => {
+                        res.status(err.statusCode ?? 500).write(
+                            JSON.stringify(err)
                         );
-                    } else {
-                        res.status(500).write(
-                            JSON.stringify({
-                                status: 500,
-                                message: `Something went wrong and we couldn't complete your request.`,
-                                error: err['stack'],
-                            })
-                        );
-                    }
-
-                    res.end();
-                },
-                complete: () => {
-                    res.end();
-                },
-            });
+                        res.end();
+                    },
+                    complete: () => {
+                        console.log('done');
+                        res.end();
+                    },
+                });
 
             req.on('close', () => {
                 subscriber.unsubscribe();
             });
         } else {
-            res.status(200).write(JSON.stringify(response));
+            // TODO verify an object is being sent
+            res.write(JSON.stringify(response));
             res.end();
         }
     }
