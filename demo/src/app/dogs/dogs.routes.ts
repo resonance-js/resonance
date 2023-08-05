@@ -11,7 +11,12 @@ export class DogRoutes {
     }
 
     @Get(':id')
-    public getDogByID(@Param('id') id: number) {
+    public getDogByID(
+        @Param('id', {
+            type: 'number',
+        })
+        id: number
+    ) {
         console.log(id);
         return this._dogsService.getDogByID(id);
     }

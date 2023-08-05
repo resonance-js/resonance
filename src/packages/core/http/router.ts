@@ -9,8 +9,15 @@ import { isHttpErrorResponse } from './interface/http-error-response';
 import { NcLogger, cyan, gray, green, yellow } from '../log';
 import { isNotNull } from '../type/not-null';
 import { GetMetadataKey } from './decorators';
+import { HttpArgument, HttpArguments } from './interface/http-parameter-query';
 
 const console = new NcLogger('RoutesMapper');
+
+export type ArgumentTypes<F extends Function> = F extends (
+    ...args: infer A
+) => any
+    ? A
+    : never;
 
 export class NcRouter {
     public appExpress = express();
@@ -21,15 +28,12 @@ export class NcRouter {
         route.setModuleBaseRoute(moduleBaseURL);
         route.setAppBaseRoute(this.baseURL);
 
-        console.log(route.reference.prototype);
-
         Object.keys(route.routeFnTree).forEach((fnName) => {
-            const parameters = route.routeFnTree[fnName].parameters;
             const httpMethod = route.routeFnTree[fnName].httpMethod;
             const path = this._buildPath(route, fnName, httpMethod);
 
             this.appExpress[httpMethod](path, (req: Request, res: Response) =>
-                this._handleResponse(route, fnName, parameters, req, res)
+                this._handleResponse(route, fnName, req, res)
             );
         });
     }
@@ -103,36 +107,71 @@ export class NcRouter {
     private _handleResponse(
         route: Route,
         fnName: string,
-        parameters: Record<string, any>,
         req: Request,
         res: Response
     ) {
-        let response: any;
         res.setHeader('content-type', 'application/json');
 
-        const argsKeys = Object.keys(parameters);
+        const decoratedArgs: HttpArguments =
+            route.reference.prototype.mapping[fnName];
+        const decoratedParams: HttpArgument[] = decoratedArgs?.param ?? [];
+        const decoratedQueries: HttpArgument[] = decoratedArgs?.query ?? [];
 
-        // TODO: fix issue where params are not applied to endpoints. Use the mapping
-        // TODO: from the param and query decorators.
-        console.log(req.params, req.query);
-        if (argsKeys.length > 0) {
+        let response: any;
+
+        if (decoratedParams.length + decoratedQueries.length > 0) {
             const args: any[] = [];
+            const missingParams: string[] = [];
+            const missingQueries: string[] = [];
 
-            const paramKeys = Object.keys(req.params);
-            // const queryKeys = Object.keys(req.query);
-
-            argsKeys.forEach((param) => {
-                if (paramKeys.includes(param)) {
-                    args.push(req.params[param]);
+            decoratedParams.forEach((p) => {
+                const param = req.params[p.name];
+                if (param) {
+                    args[p.index] = this._parseHttpArgument(param, p.type);
+                } else if (p.required) {
+                    missingParams.push(p.name);
                 }
             });
 
-            response = (route.instance as any)[fnName](...args);
+            decoratedQueries.forEach((q) => {
+                const query = req.params[q.name];
+                if (query) {
+                    args[q.index] = this._parseHttpArgument(q.type, query);
+                } else if (q.required) {
+                    missingParams.push(q.name);
+                }
+            });
+
+            if (missingParams.length + missingQueries.length > 0) {
+                const error = [];
+
+                if (missingParams.length > 0) {
+                    error.push(
+                        'Did not received required parameters: ',
+                        missingParams.join(', ')
+                    );
+                }
+
+                if (missingQueries.length > 0) {
+                    error.push(
+                        'Did not recieve required query parameters: ',
+                        missingQueries.join(', ')
+                    );
+                }
+
+                res.status(400).write({
+                    statusCode: 400,
+                    message: error.join('\n'),
+                });
+                res.end();
+            } else {
+                response = (route.instance as any)[fnName](...args);
+            }
         } else {
             response = (route.instance as any)[fnName]();
         }
 
-        if (isObservable(response)) {
+        if (isNotNull(response) && isObservable(response)) {
             const subscriber = response
                 .pipe(
                     filter(isNotNull),
@@ -143,12 +182,12 @@ export class NcRouter {
                                 ? {
                                       statusCode: err.statusCode,
                                       message: err.message,
-                                      stack: err.stack['stack'] ?? err.stack,
+                                      //   stack: err.stack['stack'] ?? err.stack,
                                   }
                                 : {
                                       status: 500,
                                       message: `Something went wrong and we couldn't complete your request.`,
-                                      error: err['stack'],
+                                      //   error: err['stack'],
                                   }
                         )
                     )
@@ -172,10 +211,27 @@ export class NcRouter {
             req.on('close', () => {
                 subscriber.unsubscribe();
             });
-        } else {
+        } else if (isNotNull(response)) {
             // TODO verify an object is being sent
             res.write(JSON.stringify(response));
             res.end();
+        }
+    }
+
+    private _parseHttpArgument(param: string, type = 'string') {
+        switch (type) {
+            case 'array':
+                return param.split(',');
+            case 'number':
+                return parseInt(param);
+            case 'boolean':
+                return param === 'true';
+            case 'object':
+                return JSON.stringify(param);
+            case 'date':
+                return new Date(param);
+            default:
+                return param;
         }
     }
 }

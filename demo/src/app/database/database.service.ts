@@ -45,11 +45,11 @@ export class DatabaseService {
         ).pipe(
             filter((row) => {
                 const hasVal = where.every((where) => {
-                    console.log(where);
-                    console.log(row[where.column], where.value);
+                    // console.log(where);
+                    // console.log(row[where.column], where.value);
                     return row[where.column] === where.value;
                 });
-                console.log(hasVal);
+                // console.log(hasVal);
                 return where.length > 0 ? hasVal : false;
             })
         );

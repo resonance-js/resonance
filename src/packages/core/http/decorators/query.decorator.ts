@@ -1,17 +1,21 @@
-export function Query(query: string) {
+export function Query(query: string, required = true) {
     return (target: any, fnKey: string, parameterIndex: number) => {
         if (!target.mapping) {
             target.mapping = {};
         }
 
         if (!target.mapping[fnKey]) {
-            target.mapping[fnKey] = [];
+            target.mapping[fnKey] = {
+                param: [],
+                query: [],
+            };
         }
 
-        target.mapping[fnKey].push({
+        target.mapping[fnKey]['query'].push({
             name: query,
             index: parameterIndex,
-            type: 'query',
+            type: typeof Reflect.ownKeys(target)[parameterIndex],
+            required,
         });
     };
 }

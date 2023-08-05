@@ -1,8 +1,8 @@
 interface Breed {
-    Breed: 'Golden Retriever';
-    Age: 3;
-    Weight: 30;
-    Color: 'Golden';
-    Size: 'Large';
+    Breed: string;
+    Age: number;
+    Weight: number;
+    Color: string;
+    Size: number;
     id: number;
 }
