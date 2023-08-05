@@ -1,4 +1,3 @@
-import { NotFoundException } from '@nestjs/common';
 import { readFileSync as fsReadFileSync } from 'fs';
 import { Observable, of, concatMap, iif, throwError } from 'rxjs';
 
@@ -15,9 +14,7 @@ export function readFile<T = any>(...pathSegments: string[]): Observable<T> {
                 () => exists,
                 of(fsReadFileSync(filePath, 'utf-8')),
                 throwError(() => {
-                    return new NotFoundException(
-                        `Couldn't find file at ${pathSegments}`
-                    );
+                    return `Couldn't find file at ${pathSegments}`;
                 })
             ).pipe(
                 concatMap((rawFile) => {

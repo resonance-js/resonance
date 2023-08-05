@@ -13,12 +13,6 @@ import { HttpArgument, HttpArguments } from './interface/http-parameter-query';
 
 const console = new NcLogger('RoutesMapper');
 
-export type ArgumentTypes<F extends Function> = F extends (
-    ...args: infer A
-) => any
-    ? A
-    : never;
-
 export class NcRouter {
     public appExpress = express();
 
@@ -31,9 +25,20 @@ export class NcRouter {
         Object.keys(route.routeFnTree).forEach((fnName) => {
             const httpMethod = route.routeFnTree[fnName].httpMethod;
             const path = this._buildPath(route, fnName, httpMethod);
+            const decoratedArgs: HttpArguments =
+                route.reference.prototype.mapping[fnName];
+            const decoratedParams: HttpArgument[] = decoratedArgs?.param ?? [];
+            const decoratedQueries: HttpArgument[] = decoratedArgs?.query ?? [];
 
             this.appExpress[httpMethod](path, (req: Request, res: Response) =>
-                this._handleResponse(route, fnName, req, res)
+                this._handleResponse(
+                    route,
+                    fnName,
+                    decoratedParams,
+                    decoratedQueries,
+                    req,
+                    res
+                )
             );
         });
     }
@@ -107,15 +112,12 @@ export class NcRouter {
     private _handleResponse(
         route: Route,
         fnName: string,
+        decoratedParams: HttpArgument[],
+        decoratedQueries: HttpArgument[],
         req: Request,
         res: Response
     ) {
         res.setHeader('content-type', 'application/json');
-
-        const decoratedArgs: HttpArguments =
-            route.reference.prototype.mapping[fnName];
-        const decoratedParams: HttpArgument[] = decoratedArgs?.param ?? [];
-        const decoratedQueries: HttpArgument[] = decoratedArgs?.query ?? [];
 
         let response: any;
 
@@ -134,9 +136,10 @@ export class NcRouter {
             });
 
             decoratedQueries.forEach((q) => {
-                const query = req.params[q.name];
+                const query = req.query[q.name];
                 if (query) {
-                    args[q.index] = this._parseHttpArgument(q.type, query);
+                    // TODO: Handle many query response types
+                    // args[q.index] = this._parseHttpArgument(q.type, query);
                 } else if (q.required) {
                     missingParams.push(q.name);
                 }
@@ -176,27 +179,26 @@ export class NcRouter {
                 .pipe(
                     filter(isNotNull),
                     catchError((err) =>
-                        // TODO Instead of returning the stack, print it out here to a router log
                         throwError(() =>
                             isHttpErrorResponse(err)
                                 ? {
                                       statusCode: err.statusCode,
                                       message: err.message,
-                                      //   stack: err.stack['stack'] ?? err.stack,
+                                      stack: err.stack['stack'] ?? err.stack,
                                   }
                                 : {
                                       status: 500,
                                       message: `Something went wrong and we couldn't complete your request.`,
-                                      //   error: err['stack'],
+                                      stack: err['stack'],
                                   }
                         )
                     )
                 )
                 .subscribe({
-                    next: (next) => {
-                        res.write(JSON.stringify(next));
-                    },
+                    next: (next) => res.write(JSON.stringify(next)),
                     error: (err) => {
+                        console.error(err.stack);
+                        delete err.stack;
                         res.status(err.statusCode ?? 500).write(
                             JSON.stringify(err)
                         );
@@ -208,14 +210,18 @@ export class NcRouter {
                     },
                 });
 
-            req.on('close', () => {
-                subscriber.unsubscribe();
-            });
+            req.on('close', () => subscriber.unsubscribe());
         } else if (isNotNull(response)) {
-            // TODO verify an object is being sent
-            res.write(JSON.stringify(response));
-            res.end();
+            if (typeof response === 'object') {
+                res.write(JSON.stringify(response));
+            } else {
+                res.write(response);
+            }
+        } else {
+            res.status(204);
         }
+
+        res.end();
     }
 
     private _parseHttpArgument(param: string, type = 'string') {
