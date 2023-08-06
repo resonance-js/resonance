@@ -1,15 +1,15 @@
-import { indexArray } from './array';
+import { indexArray } from '../array';
 
 export enum SortDirection {
     NO_SORT,
     ASCENDING,
-    DESCENDING
+    DESCENDING,
 }
 
 enum ArrSortDirection {
     A_LESS_THAN_B = -1,
     A_GREATER_THAN_B = 1,
-    EQUAL = 0
+    EQUAL = 0,
 }
 
 /**

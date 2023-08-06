@@ -1,5 +1,5 @@
 import { Injectable } from '@resonance/core';
-import { deepCopy } from '@resonance/cxjs';
+import { DeepCopy } from '@resonance/cxjs';
 import console from 'console';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -18,7 +18,7 @@ export class DatabaseService {
     }
 
     public selectAll() {
-        return of(...this.data).pipe(map((val) => deepCopy(val)));
+        return of(...this.data).pipe(map((val) => DeepCopy(val)));
     }
 
     public select(
