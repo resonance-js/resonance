@@ -11,7 +11,6 @@ const config: Configuration = {
     entry: './index.ts',
     cache: true,
     devtool: 'inline-source-map',
-    watch: true,
     externals: [nodeExternals()],
     externalsPresets: {
         node: true,
@@ -24,7 +23,6 @@ const config: Configuration = {
             {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
-                exclude: resolve(join('..', '..', '..', 'node_modules')),
             },
         ],
     },
