@@ -25,6 +25,8 @@ export class _Injectable<T extends _injectable_ref> {
      */
     public $onInit = new ReactiveSubject<boolean>();
 
+    public onInit$ = this.$onInit.next$.pipe(take(1));
+
     constructor(
         public reference: Class<T>,
         public name: string,
@@ -43,7 +45,9 @@ export class _Injectable<T extends _injectable_ref> {
                 return dependency;
             }
         );
+    }
 
+    public init() {
         this._injectDependencies().subscribe(() => this.$onInit.next(true));
     }
 
@@ -90,5 +94,6 @@ export const InjectableCatalog = new _InjectableCatalog();
 export class Injectable extends _Injectable<injectable_ref> {
     constructor(reference: Class<injectable_ref>) {
         super(reference, 'Injectable');
+        this.init();
     }
 }

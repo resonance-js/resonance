@@ -20,7 +20,7 @@ interface Injectable {
  * Injectable decorator and metadata.
  */
 export const Injectable = (opts?: Injectable) => {
-    return (instance: Class<injectable_ref>) => {
+    return (instance: Class<any>) => {
         const injectableName = getClassName(instance);
 
         instance.prototype.name = injectableName;

@@ -116,7 +116,9 @@ export class Module {
 
             return route.$onInit.next$.pipe(
                 take(1),
-                map(() => this.routes.set(routeName, route))
+                map(() => {
+                    this.routes.set(routeName, route);
+                })
             );
         });
     }

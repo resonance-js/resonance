@@ -1,5 +1,7 @@
 import { Injectable } from '@resonance/core';
+import { isNonNullable } from '@resonance/cxjs';
 import { DatabaseService } from '../database/database.service';
+import { filter } from 'rxjs';
 
 @Injectable()
 export class DogService {
@@ -7,6 +9,20 @@ export class DogService {
 
     public getAllDogs() {
         return this._databaseService.selectAll();
+    }
+
+    public queryDogs(query?: { age?: number }) {
+        return this._databaseService.selectAll().pipe(
+            filter((dog) => {
+                if (isNonNullable(query)) {
+                    if (query.age) {
+                        return dog.Age === query.age;
+                    }
+                }
+
+                return true;
+            })
+        );
     }
 
     public getDogByID(id: number) {

@@ -1,10 +1,6 @@
-export function Param(
-    parameter: string,
-    opts?: {
-        required?: boolean;
-        type?: 'number' | 'array' | 'string' | 'boolean' | 'object' | 'date';
-    }
-) {
+import { getFunctionParameters } from '../util';
+
+export function Param(parameter: string, required?: boolean) {
     return (target: any, fnKey: string, parameterIndex: number) => {
         if (!target.mapping) {
             target.mapping = {};
@@ -20,8 +16,8 @@ export function Param(
         target.mapping[fnKey]['param'].push({
             name: parameter,
             index: parameterIndex,
-            type: opts?.type ?? 'string',
-            required: opts?.required ?? true,
+            type: getFunctionParameters(target, fnKey)[parameterIndex],
+            required: required ?? true,
         });
     };
 }

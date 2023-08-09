@@ -2,14 +2,22 @@ import express, { Request, Response } from 'express';
 import { Route, SupportedHttpMethod } from '../di/route';
 import { getMetadata } from '../util/reflect';
 import { DeleteMetadataKey } from './delete.decorator';
-import { catchError, filter, isObservable, throwError } from 'rxjs';
+import {
+    catchError,
+    filter,
+    isObservable,
+    last,
+    of,
+    scan,
+    throwError,
+} from 'rxjs';
 import { isHttpErrorResponse } from './interface/http-error-response';
 import { NcLogger, cyan, gray, green, yellow } from '../log';
-import { isNonNullable } from '../../../cxjs/lib/conditionals/is-non-nullable';
 import { HttpArgument } from './interface/http-parameter-query';
 import { GetMetadataKey } from './get.decorator';
 import { PostMetadataKey } from './post.decorator';
 import { PutMetadataKey } from './put.decorator';
+import { deepCopy, isNonNullable } from '../../../cxjs';
 
 const console = new NcLogger('RoutesMapper');
 
@@ -22,14 +30,13 @@ export class NcRouter {
         route.setModuleBaseRoute(moduleBaseURL);
         route.setAppBaseRoute(this.baseURL);
 
-        for (let fnName in route.routeFnsMap.keys()) {
-            const httpMethod = route.routeFnsMap.get(fnName)?.httpMethod;
-
-            if (httpMethod) {
-                Object.keys(route.routeFnsMap).forEach((fnName) => {
+        route.onInit$.subscribe(() => {
+            for (const fnName of Array.from(route.routeFnsMap.keys())) {
+                const httpMethod = route.routeFnsMap.get(fnName)?.httpMethod;
+                if (httpMethod) {
                     this.appExpress[httpMethod](
                         this._buildPath(route, fnName, httpMethod),
-                        (req: Request, res: Response) =>
+                        (req: Request, res: Response) => {
                             this._handleResponse(
                                 route,
                                 fnName,
@@ -39,11 +46,12 @@ export class NcRouter {
                                     ?.query ?? [],
                                 req,
                                 res
-                            )
+                            );
+                        }
                     );
-                });
+                }
             }
-        }
+        });
     }
 
     private _buildPath(
@@ -122,11 +130,12 @@ export class NcRouter {
                 }
             });
 
+            const query = deepCopy<Record<string, any>>(req.query);
+
             decoratedQueries.forEach((q) => {
-                const query = req.query[q.name];
+                const _query = query[q.name];
                 if (query) {
-                    // TODO: Handle many query response types
-                    // args[q.index] = this._parseHttpArgument(q.type, query);
+                    args[q.index] = this._parseHttpArgument(_query, q.type);
                 } else if (q.required) {
                     missingParams.push(q.name);
                 }
@@ -179,6 +188,16 @@ export class NcRouter {
                                       stack: err['stack'],
                                   }
                         )
+                    ),
+                    scan((acc, next) => {
+                        acc.push(next);
+                        return acc;
+                    }, [] as any[]),
+                    last(),
+                    catchError((err) =>
+                        err.message.includes('no elements in sequence')
+                            ? of([])
+                            : throwError(() => err)
                     )
                 )
                 .subscribe({
@@ -192,7 +211,6 @@ export class NcRouter {
                         res.end();
                     },
                     complete: () => {
-                        console.log('done');
                         res.end();
                     },
                 });

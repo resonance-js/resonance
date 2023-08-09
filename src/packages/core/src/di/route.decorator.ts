@@ -15,7 +15,7 @@ export const RouteMetadataKey = 'resonance:route';
  * Route decorator and metadata.
  */
 export const Route = (route: string = '') => {
-    return (instance: Class<route_ref>) => {
+    return (instance: Class<any>) => {
         const routeName = getClassName(instance);
 
         instance.prototype.name = routeName;

@@ -1,5 +1,4 @@
-import { isNotNull } from '@resonance/core';
-import { sortAscending, sortDescending } from '@resonance/cxjs';
+import { isNonNullable, sortAscending, sortDescending } from '@resonance/cxjs';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { concatMap, filter, last, map, of, scan } from 'rxjs';
@@ -79,7 +78,7 @@ export class Database<T> {
 
                 return row;
             }),
-            filter(isNotNull)
+            filter(isNonNullable)
         );
 
         if (opts?.orderBy) {

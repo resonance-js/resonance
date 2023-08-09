@@ -1,6 +1,6 @@
 import { Subject } from 'rxjs';
 import { Class } from '../interface/class';
-import { getClassMembers, getFunctionParameters } from '../util/reflect';
+import { getClassMembers, getConstructorParameters } from '../util/reflect';
 import { isDelete } from '../router/delete.decorator';
 import { isGet } from '../router/get.decorator';
 import { isPost } from '../router/post.decorator';
@@ -31,9 +31,9 @@ export class Route extends _Injectable<route_ref> {
 
     constructor(reference: Class<route_ref>, name: string, _route: string) {
         super(reference, name, 'Route');
-
         this.path = [_route];
         this._buildRouteMethodTree();
+        this.init();
     }
 
     private _buildRouteMethodTree() {
@@ -46,7 +46,7 @@ export class Route extends _Injectable<route_ref> {
                 if (httpMethod)
                     this.routeFnsMap.set(fnName, {
                         httpMethod,
-                        parameters: getFunctionParameters(
+                        parameters: getConstructorParameters(
                             this.reference.prototype[fnName]
                         ),
                     });

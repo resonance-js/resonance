@@ -47,7 +47,7 @@ export const getClassMembers = (target: Class<any>) => {
     return toReturn;
 };
 
-export const getFunctionParameters = (target: any) => {
+export const getConstructorParameters = (target: any) => {
     const toReturn: { [name: string | symbol]: any } = {};
 
     if (target) {
@@ -58,6 +58,11 @@ export const getFunctionParameters = (target: any) => {
 
     return toReturn;
 };
+
+export const getFunctionParameters = (target: any, key: string | symbol) =>
+    Reflect.getMetadata('design:paramtypes', target, key).map((val: any) =>
+        (val.toString() as string).split(' ')[1].replace('()', '').toLowerCase()
+    );
 
 /**
  * Extracts injected dependencies from a class.

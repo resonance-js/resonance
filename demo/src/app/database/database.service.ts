@@ -1,11 +1,8 @@
 import { Injectable } from '@resonance/core';
-import { DeepCopy } from '@resonance/cxjs';
-import console from 'console';
+import { deepCopy } from '@resonance/cxjs';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { filter, map, of } from 'rxjs';
-
-let instanceNum = 0;
 
 @Injectable()
 export class DatabaseService {
@@ -13,12 +10,10 @@ export class DatabaseService {
         readFileSync(join(__dirname, 'dogs.json'), 'utf-8')
     );
 
-    constructor() {
-        console.log(instanceNum++);
-    }
+    constructor() {}
 
     public selectAll() {
-        return of(...this.data).pipe(map((val) => DeepCopy(val)));
+        return of(...this.data).pipe(map((val) => deepCopy(val)));
     }
 
     public select(

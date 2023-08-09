@@ -1,6 +1,4 @@
-export function isNonNullable<T>(val: T): val is NonNullable<T> {
-    return val !== undefined && val !== null;
-}
+import { isNonNullable } from '../conditionals';
 
 export function coerceBool<T>(val: T, defaultVal?: boolean): boolean | null {
     if (isNonNullable(val))

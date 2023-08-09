@@ -1,8 +1,6 @@
 import { Class } from '../interface/class';
 import { getClassName, setMetadata } from '../util/reflect';
-import { injectable_ref } from './injectable.decorator';
 import { ModuleCatalog, Module } from './module';
-import { route_ref } from './route.decorator';
 
 /** The name of the module. */
 export const ModuleMetadataKey = 'resonance:module';
@@ -11,10 +9,10 @@ export const ModuleMetadataKey = 'resonance:module';
 export const ModuleBasePathKey = 'resonance:baseurl';
 
 export interface NcModule {
-    routes?: Array<Class<route_ref>>;
-    declarations?: Array<Class<injectable_ref>>;
-    exports?: Array<Class<injectable_ref>>;
-    imports?: Array<Class<module_ref>>;
+    routes?: Array<Class<any>>;
+    declarations?: Array<Class<any>>;
+    exports?: Array<Class<any>>;
+    imports?: Array<Class<any>>;
     baseURL?: string;
 }
 

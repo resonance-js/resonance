@@ -1,4 +1,4 @@
-import { Get, Param, Route } from '@resonance/core';
+import { Get, Param, Query, Route } from '@resonance/core';
 import { DogService } from './dogs.service';
 
 @Route('dogs')
@@ -6,18 +6,20 @@ export class DogRoutes {
     constructor(private _dogsService: DogService) {}
 
     @Get()
-    public getAllDogs() {
-        return this._dogsService.getAllDogs();
+    public getAllDogs(
+        @Query('age')
+        age: number
+    ) {
+        return this._dogsService.queryDogs({
+            age,
+        });
     }
 
     @Get(':id')
     public getDogByID(
-        @Param('id', {
-            type: 'number',
-        })
+        @Param('id')
         id: number
     ) {
-        console.log(id);
         return this._dogsService.getDogByID(id);
     }
 }
