@@ -1,5 +1,3 @@
-import { getFunctionParameters } from '../util';
-
 export function Query(query: string, required?: boolean) {
     return (target: any, fnKey: string, parameterIndex: number) => {
         if (!target.mapping) {
@@ -16,7 +14,6 @@ export function Query(query: string, required?: boolean) {
         target.mapping[fnKey]['query'].push({
             name: query,
             index: parameterIndex,
-            type: getFunctionParameters(target, fnKey)[parameterIndex],
             required,
         });
     };

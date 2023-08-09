@@ -1,7 +1,5 @@
 import express, { Request, Response } from 'express';
-import { Route, SupportedHttpMethod } from '../di/route';
-import { getMetadata } from '../util/reflect';
-import { DeleteMetadataKey } from './delete.decorator';
+import { Route } from '../di/route';
 import {
     catchError,
     filter,
@@ -14,9 +12,6 @@ import {
 import { isHttpErrorResponse } from './interface/http-error-response';
 import { NcLogger, cyan, gray, green, yellow } from '../log';
 import { HttpArgument } from './interface/http-parameter-query';
-import { GetMetadataKey } from './get.decorator';
-import { PostMetadataKey } from './post.decorator';
-import { PutMetadataKey } from './put.decorator';
 import { deepCopy, isNonNullable } from '../../../cxjs';
 
 const console = new NcLogger('RoutesMapper');
@@ -27,15 +22,19 @@ export class NcRouter {
     constructor(public baseURL: string = 'api') {}
 
     public initializeRoute(route: Route, moduleBaseURL?: string) {
-        route.setModuleBaseRoute(moduleBaseURL);
-        route.setAppBaseRoute(this.baseURL);
+        if (moduleBaseURL) route.path.unshift(moduleBaseURL);
+        route.path.unshift(this.baseURL);
 
         route.onInit$.subscribe(() => {
-            for (const fnName of Array.from(route.routeFnsMap.keys())) {
-                const httpMethod = route.routeFnsMap.get(fnName)?.httpMethod;
-                if (httpMethod) {
-                    this.appExpress[httpMethod](
-                        this._buildPath(route, fnName, httpMethod),
+            for (const fnName of route.fnsCatalog.keysArr) {
+                route.fnsCatalog.getThen(fnName, (val) => {
+                    this.appExpress[val.httpMethod](
+                        this._buildPath(
+                            route,
+                            fnName,
+                            val.path,
+                            val.httpMethod
+                        ),
                         (req: Request, res: Response) => {
                             this._handleResponse(
                                 route,
@@ -49,7 +48,7 @@ export class NcRouter {
                             );
                         }
                     );
-                }
+                });
             }
         });
     }
@@ -57,51 +56,27 @@ export class NcRouter {
     private _buildPath(
         route: Route,
         fnName: string,
-        httpMethod: SupportedHttpMethod
+        path: string,
+        httpMethodName: string
     ) {
-        const metadataKey = () => {
-            switch (httpMethod) {
-                case 'get':
-                    return GetMetadataKey;
-                case 'put':
-                    return PutMetadataKey;
-                case 'post':
-                    return PostMetadataKey;
-                case 'delete':
-                    return DeleteMetadataKey;
-            }
-        };
-
-        return this._buildFnRoute(route, fnName, metadataKey(), httpMethod);
-    }
-
-    private _buildFnRoute(
-        route: Route,
-        fnName: string,
-        metadataKey: string,
-        type: string
-    ) {
-        const path =
+        const _path =
             '/' +
-            [
-                ...route.path,
-                getMetadata(metadataKey, route.reference.prototype[fnName]),
-            ]
+            [...route.path, path]
                 .filter((segment) => segment.length > 0)
                 .join('/');
 
         console.log(
             [
                 yellow('[Mapped]'),
-                green(type.toUpperCase()),
-                cyan(path),
+                green(httpMethodName.toUpperCase()),
+                cyan(_path),
                 gray('=>'),
                 cyan(`${fnName}`),
                 gray(`@`),
                 cyan(route.name),
             ].join(' ')
         );
-        return path;
+        return _path;
     }
 
     private _handleResponse(
@@ -121,24 +96,32 @@ export class NcRouter {
             const missingParams: string[] = [];
             const missingQueries: string[] = [];
 
-            decoratedParams.forEach((p) => {
-                const param = req.params[p.name];
-                if (param) {
-                    args[p.index] = this._parseHttpArgument(param, p.type);
-                } else if (p.required) {
-                    missingParams.push(p.name);
-                }
-            });
+            route.fnsCatalog.getThen(fnName, (node) => {
+                decoratedParams.forEach((p) => {
+                    const param = req.params[p.name];
+                    if (param) {
+                        args[p.index] = this._parseHttpArgument(
+                            param,
+                            node.parameters[p.name]
+                        );
+                    } else if (p.required) {
+                        missingParams.push(p.name);
+                    }
+                });
 
-            const query = deepCopy<Record<string, any>>(req.query);
+                const query = deepCopy<Record<string, any>>(req.query);
 
-            decoratedQueries.forEach((q) => {
-                const _query = query[q.name];
-                if (query) {
-                    args[q.index] = this._parseHttpArgument(_query, q.type);
-                } else if (q.required) {
-                    missingParams.push(q.name);
-                }
+                decoratedQueries.forEach((q) => {
+                    const _query = query[q.name];
+                    if (query) {
+                        args[q.index] = this._parseHttpArgument(
+                            _query,
+                            node.parameters[q.name]
+                        );
+                    } else if (q.required) {
+                        missingParams.push(q.name);
+                    }
+                });
             });
 
             if (missingParams.length + missingQueries.length > 0) {
