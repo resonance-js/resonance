@@ -1,7 +1,8 @@
 export interface HttpErrorResponse {
     statusCode: number;
     message: string;
-    stack: any;
+    response?: any;
+    stack?: any;
 }
 
 export const isHttpErrorResponse = (val: unknown): val is HttpErrorResponse => {
@@ -10,7 +11,6 @@ export const isHttpErrorResponse = (val: unknown): val is HttpErrorResponse => {
         val !== null &&
         typeof val === 'object' &&
         'statusCode' in val &&
-        'message' in val &&
-        'stack' in val
+        'message' in val
     );
 };

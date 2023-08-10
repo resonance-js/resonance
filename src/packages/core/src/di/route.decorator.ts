@@ -22,17 +22,15 @@ export const Route = (route: string = '') => {
         instance.prototype.route = route;
         instance.prototype.injected = getInjectedDeps(instance);
 
-        setMetadata(RouteNameMetadataKey, routeName);
-        setMetadata(RouteMetadataKey, route);
+        setMetadata(RouteNameMetadataKey, routeName, instance);
+        setMetadata(RouteMetadataKey, route, instance);
 
         RouteCatalog.set(routeName, new _Route(instance, routeName, route));
     };
 };
 
 export interface route_ref extends injectable_ref {
-    name: string;
     route: string;
-    injected: string[];
     mapping: Record<
         string,
         {
@@ -40,4 +38,5 @@ export interface route_ref extends injectable_ref {
             query: HttpArgument[];
         }
     >;
+    ncOnBasicAuthRequest?: Function;
 }

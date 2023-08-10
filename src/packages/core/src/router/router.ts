@@ -1,18 +1,32 @@
 import express, { Request, Response } from 'express';
 import { Route, RouteCatalog, SupportedHttpMethod } from '../di/route';
 import {
+    NEVER,
     catchError,
     filter,
     isObservable,
     last,
+    map,
     of,
     scan,
     throwError,
 } from 'rxjs';
-import { isHttpErrorResponse } from './interface/http-error-response';
+import {
+    HttpErrorResponse,
+    isHttpErrorResponse,
+} from './interface/http-error-response';
 import { NcLogger, cyan, gray, green, yellow } from '../log';
 import { HttpArgument } from './interface/http-parameter-query';
 import { deepCopy, isNonNullable } from '../../../cxjs';
+import { BasicAuthHandler } from '../auth/basic_handler';
+import { AuthHandler } from '../auth/handler';
+import { Catalog } from '../util';
+import {
+    AuthLifecycleFnNames,
+    implementsBasicAuth,
+    implementsBearerAuth,
+} from '../auth';
+import { BearerAuthHandler } from '../auth/bearer_handler';
 
 const console = new NcLogger('RoutesMapper');
 
@@ -27,11 +41,14 @@ export function buildPath(routePath: string[], path: string) {
 export class NcRouter {
     public appExpress = express();
 
+    public authHandlerCatalog = new Catalog<string, AuthHandler>();
+
     constructor(public baseURL: string = 'api') {}
 
     public initializeRoutes(applicationRoutes: string[]) {
         applicationRoutes.forEach((routeName) => {
             RouteCatalog.getThen(routeName, (route) => {
+                this._evalForAuthHandler(route);
                 for (const fnName of route.fnsCatalog.keysArr) {
                     route.fnsCatalog.getThen(fnName, (val) => {
                         const path = buildPath(
@@ -50,21 +67,72 @@ export class NcRouter {
         });
     }
 
+    // TODO for some reason the router isn't picking up the auth handlers
+    private _evalForAuthHandler(route: Route) {
+        if (implementsBasicAuth(route.reference.prototype, route.instance)) {
+            this.authHandlerCatalog.set(
+                route.name,
+                new BasicAuthHandler('ncOnBasicAuthRequest', route.name)
+            );
+        } else if (
+            implementsBearerAuth(route.reference.prototype, route.instance)
+        ) {
+            this.authHandlerCatalog.set(
+                route.name,
+                new BearerAuthHandler('ncOnBearerTokenRequest', route.name)
+            );
+        }
+    }
+
     private _createEndpoint(
         route: Route,
         httpMethod: SupportedHttpMethod,
         path: string,
         fnName: string
     ) {
+        let paramMapping: any[] = [];
+        let queryMapping: any[] = [];
+
+        try {
+            paramMapping = route.reference.prototype.mapping[fnName]?.param;
+        } catch {}
+
+        try {
+            queryMapping = route.reference.prototype.mapping[fnName]?.query;
+        } catch {}
+
+        const authGuarded = route.fnsCatalog.get(fnName)?.authGuard ?? null;
+        const authGuard = authGuarded
+            ? AuthLifecycleFnNames[authGuarded]
+            : null;
+        const authHandler =
+            this.authHandlerCatalog.getIfNonNullableKey(authGuard);
+
         this.appExpress[httpMethod](path, (req: Request, res: Response) => {
-            this.handleResponse(
-                route,
-                fnName,
-                route.reference.prototype.mapping[fnName]?.param ?? [],
-                route.reference.prototype.mapping[fnName]?.query ?? [],
-                req,
-                res
-            );
+            if (authHandler) {
+                authHandler.onRequest(req).pipe(
+                    this._catchAuthError(res),
+                    map(() => {
+                        this.handleResponse(
+                            route,
+                            fnName,
+                            paramMapping,
+                            queryMapping,
+                            req,
+                            res
+                        );
+                    })
+                );
+            } else {
+                this.handleResponse(
+                    route,
+                    fnName,
+                    paramMapping,
+                    queryMapping,
+                    req,
+                    res
+                );
+            }
         });
 
         console.log(
@@ -78,6 +146,29 @@ export class NcRouter {
                 cyan(route.name),
             ].join(' ')
         );
+    }
+
+    private _catchAuthError(res: Response) {
+        return catchError((err) => {
+            let handlerRes: HttpErrorResponse = isHttpErrorResponse(err)
+                ? err
+                : {
+                      message: `Something went wrong, and we couldn't complete your request`,
+                      statusCode: 500,
+                  };
+
+            if (typeof err === 'string') {
+                console.error(err);
+            } else if (typeof err === 'object') {
+                handlerRes.response = err;
+            }
+
+            res.status(handlerRes.statusCode)
+                .send(JSON.stringify(handlerRes))
+                .end();
+
+            return NEVER;
+        });
     }
 
     public handleResponse(
@@ -204,7 +295,7 @@ export class NcRouter {
             if (typeof response === 'object') {
                 res.write(JSON.stringify(response));
             } else {
-                res.write(response);
+                res.write(`${response}`);
             }
         } else {
             res.status(204);

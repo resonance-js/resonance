@@ -5,3 +5,4 @@ export { Injectable, NcModule, Route } from './di';
 export { Delete, Get, Put, Post, Query, Param } from './router';
 export * from './log';
 export * from './util/index';
+export * from './auth';

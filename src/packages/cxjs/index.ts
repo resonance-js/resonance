@@ -12,3 +12,4 @@ export * from './lib/assign-val';
 export * from './lib/object-array-insert';
 export * from './lib/unary';
 export * from './lib/conditionals';
+export * from './lib/type';

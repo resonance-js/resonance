@@ -12,6 +12,7 @@ import { route_ref } from './route.decorator';
 import { RouteTreeNode } from '../router/interface/route-tree-node';
 import { _Injectable } from './injectable';
 import { Catalog } from '../util';
+import { AuthMetadataKey } from '../auth/auth.decorator';
 
 export const RouteNameMetadataKey = 'resonance:route:name';
 export const RouteMetadataKey = 'resonance:route';
@@ -94,6 +95,7 @@ export class Route extends _Injectable<route_ref> {
                 metadataKey,
                 parameters,
                 path: name ?? '',
+                authGuard: getMetadata(AuthMetadataKey, fn),
             };
         }
 

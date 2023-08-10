@@ -11,7 +11,7 @@ export interface _injectable_ref {
 
 export class _Injectable<T extends _injectable_ref> {
     /**
-     * Other `@Injectables` injected into an injectable class' constructor.
+     * Other `@Injectables` injected into the constructor of {@link reference}.
      */
     public dependencies: Injectable[] = [];
 
@@ -21,11 +21,14 @@ export class _Injectable<T extends _injectable_ref> {
     public instance?: Class<any>;
 
     /**
+     * Emits to {@link onInit$} when all dependencies are resolved.
+     */
+    private _$onInit = new ReactiveSubject<boolean>();
+
+    /**
      * Emits when all dependencies have been resolved.
      */
-    public $onInit = new ReactiveSubject<boolean>();
-
-    public onInit$ = this.$onInit.next$.pipe(take(1));
+    public onInit$ = this._$onInit.next$.pipe(take(1));
 
     constructor(
         public reference: Class<T>,
@@ -48,7 +51,7 @@ export class _Injectable<T extends _injectable_ref> {
     }
 
     public init() {
-        this._injectDependencies().subscribe(() => this.$onInit.next(true));
+        this._injectDependencies().subscribe(() => this._$onInit.next(true));
     }
 
     private _injectDependencies() {
@@ -58,7 +61,7 @@ export class _Injectable<T extends _injectable_ref> {
         }
 
         return forkJoin(
-            this.dependencies.map((dep) => dep.$onInit.next$.pipe(take(1)))
+            this.dependencies.map((dep) => dep.onInit$.pipe(take(1)))
         ).pipe(
             map(() => {
                 const args = this.dependencies.map(
