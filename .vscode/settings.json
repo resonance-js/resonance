@@ -133,5 +133,8 @@
         "**/deps": true,
         ".legacy": true
     },
-    "search.followSymlinks": false
+    "search.followSymlinks": false,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true
+    }
 }

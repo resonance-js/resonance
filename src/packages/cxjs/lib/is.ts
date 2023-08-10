@@ -8,6 +8,6 @@ export type Types =
     | 'symbol'
     | 'undefined';
 
-export function is<T>(variable: any, type: Types): variable is T {
+export function is<T>(variable: unknown, type: Types): variable is T {
     return typeof variable === type;
 }

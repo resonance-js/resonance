@@ -1,11 +1,12 @@
 import { NcModule } from '@resonance/core';
 import { BreedsService } from './breeds.service';
-import { BreedsRoute } from './breeds.route';
+import { BreedsRoute } from './breeds.routes';
+import { DatabaseModule } from '../database/database.module';
 
 @NcModule({
-    baseURL: 'breeds',
     declarations: [BreedsService],
     exports: [BreedsService],
     routes: [BreedsRoute],
+    imports: [DatabaseModule],
 })
 export class BreedsModule {}

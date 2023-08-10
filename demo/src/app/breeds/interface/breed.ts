@@ -1,8 +1,8 @@
 interface Breed {
-    name: string;
-    primaryColor: string;
-    secondaryColor?: string;
-    coat: 'fur' | 'hair';
-    averageHeight?: number;
-    averageWeight?: number;
+    Breed: string;
+    Age: number;
+    Weight: number;
+    Color: string;
+    Size: number;
+    id: number;
 }

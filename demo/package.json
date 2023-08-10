@@ -3,6 +3,10 @@
     "version": "0.0.1",
     "author": "Alexander Porrello",
     "description": ".",
+    "scripts": {
+	"build-dev": "npx tsc --watch",
+        "start": "node -r source-map-support/register dist/main"
+    },
     "dependencies": {
         "tslib": "^2.3.0"
     },
