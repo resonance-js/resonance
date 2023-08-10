@@ -1,8 +1,8 @@
-import { Subject, concatMap, forkJoin, map, take } from 'rxjs';
+import { Subject, concatMap, forkJoin, map, of, take } from 'rxjs';
 import { Class } from '../interface/class';
 import { Injectable, InjectableCatalog } from './injectable';
 import { Route, RouteCatalog } from './route';
-import { ReactiveSubject } from '../util';
+import { Catalog, ReactiveSubject } from '../util';
 import { getClassName } from '../util/reflect';
 import { NcModule, module_ref as module_ref } from './module.decorator';
 import { injectable_ref } from './injectable.decorator';
@@ -28,14 +28,17 @@ export const ModuleCatalog = new _ModuleCatalog();
 
 export class Module {
     public name: string;
-    public baseURL: string | undefined;
     public instance: Class<any>;
-    public routes = new Map<string, Route>();
-    public declarations = new Map<string, Injectable>();
-    public exports = new Map<string, Injectable>();
-    public imports = new Map<string, Module>();
+
+    public declarations = new Catalog<string, Injectable>();
+    public exports = new Catalog<string, Injectable>();
+    public imports = new Catalog<string, Module>();
+
+    public baseURL: string | undefined;
+    public routes = new Catalog<string, Route>();
 
     public $onInit = new ReactiveSubject<boolean>();
+    public onInit$ = this.$onInit.next$.pipe(take(1));
 
     constructor(
         public reference: Class<module_ref>,
@@ -44,34 +47,26 @@ export class Module {
         this.name = getClassName(reference);
         this.baseURL = ncModule.baseURL;
         this.instance = new reference();
-        this.imports = this._processImports(ncModule.imports);
+        this.imports = this._loadImports(ncModule.imports);
 
-        forkJoin(
-            this._initializeDeclarations(
-                ncModule.declarations,
-                Object.values(ncModule.exports ?? []).map(
-                    (exprt) => exprt.prototype.name
-                )
+        this._initializeDeclarations(
+            ncModule.declarations,
+            Object.values(ncModule.exports ?? []).map(
+                (exprt) => exprt.prototype.name
             )
         )
-            .pipe(
-                concatMap(() =>
-                    forkJoin(this._initializeRoutes(ncModule.routes))
-                )
-            )
+            .pipe(concatMap(() => this._initializeRoutes(ncModule.routes)))
             .subscribe(() => {
                 this.$onInit.next(true);
             });
     }
 
-    private _processImports(imports: Class<module_ref>[] = []) {
-        const toReturn = new Map<string, Module>();
+    private _loadImports(imports: Class<module_ref>[] = []) {
+        const toReturn = new Catalog<string, Module>();
         imports.forEach((imprt) => {
             const moduleName = getClassName(imprt);
             const module = ModuleCatalog.get(moduleName);
-            if (module) {
-                toReturn.set(moduleName, module);
-            }
+            toReturn.setIfNonNullable(moduleName, module);
         });
         return toReturn;
     }
@@ -80,46 +75,54 @@ export class Module {
         declarations: Class<injectable_ref>[] = [],
         exports: string[] = []
     ) {
-        return declarations.map((serviceReference, index) => {
-            const serviceName = serviceReference.prototype.name;
-            const service = InjectableCatalog.get(serviceName);
+        if (declarations.length === 0)
+            return of('No declarations to initialize');
 
-            if (service === undefined) {
-                throw new Error(
-                    `Failed to initialize declaration ${serviceName} for module ${this.name} at index ${index}. ` +
-                        `Did you decorate ${serviceName} with @Service()?`
+        return forkJoin(
+            declarations.map((injectableRef, index) => {
+                const injectableName = injectableRef.prototype.name;
+                const injectable = InjectableCatalog.get(injectableName);
+
+                if (injectable === undefined) {
+                    throw new Error(
+                        `Failed to initialize declaration ${injectableName} for module ${this.name} at index ${index}. ` +
+                            `Did you decorate ${injectableName} with @Injectable()?`
+                    );
+                }
+
+                return injectable.onInit$.pipe(
+                    map(() => {
+                        exports.includes(injectableName)
+                            ? this.exports.set(injectableName, injectable)
+                            : this.declarations.set(injectableName, injectable);
+                        return 'Declaration initialized';
+                    })
                 );
-            }
-
-            return service.$onInit.next$.pipe(
-                take(1),
-                map(() =>
-                    exports.includes(serviceName)
-                        ? this.exports.set(serviceName, service)
-                        : this.declarations.set(serviceName, service)
-                )
-            );
-        });
+            })
+        ).pipe(map(() => 'Declarations initialized'));
     }
 
     private _initializeRoutes(routes: Class<route_ref>[] = []) {
-        return routes.map((routeReference, index) => {
-            const routeName = routeReference.prototype.name;
-            const route = RouteCatalog.get(routeName);
+        if (routes.length === 0) return of('No routes to initialize.');
 
-            if (route === undefined) {
-                throw new Error(
-                    `Failed to initialize route ${routeName} for module ${this.name} at index ${index}. ` +
-                        `Did you decorate ${routeName} with @Route()?`
+        return forkJoin(
+            routes.map((routeRef, index) => {
+                const routeName = routeRef.prototype.name;
+                const route = RouteCatalog.get(routeName);
+
+                if (route === undefined) {
+                    throw new Error(
+                        `Failed to initialize route ${routeName} for module ${this.name} at index ${index}. ` +
+                            `Did you decorate ${routeName} with @Route()?`
+                    );
+                }
+
+                return route.onInit$.pipe(
+                    map(() => {
+                        this.routes.set(routeName, route);
+                    })
                 );
-            }
-
-            return route.$onInit.next$.pipe(
-                take(1),
-                map(() => {
-                    this.routes.set(routeName, route);
-                })
-            );
-        });
+            })
+        );
     }
 }

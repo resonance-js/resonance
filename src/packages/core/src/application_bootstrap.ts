@@ -12,13 +12,14 @@ import {
     $routesInitialized,
     $serverInitialized,
 } from './application_lifecycle';
-import { NcLogger, green } from './log';
+import { green } from './log';
 import { getClassName } from './util';
 import { NcRouter } from './router/router';
 import { Module, ModuleCatalog } from './di/module';
 import { module_ref } from './di';
+import { Request, Response } from 'express';
 
-const console = new NcLogger('ResonanceApp');
+// const console = new NcLogger('ResonanceApp');
 
 export class Resonance {
     public appRef!: Module;
@@ -33,7 +34,7 @@ export class Resonance {
         $bootstrapped.next(true);
         $bootstrapped.complete();
 
-        this._initializeRoutes();
+        this._resolveRoutes();
         $routesInitialized.next(true);
         $routesInitialized.complete();
 
@@ -52,26 +53,26 @@ export class Resonance {
 
         if (appRef === undefined) {
             throw new Error(
-                `Failed to initialize Resonance app root module ${rootModuleName}. Are you sure you provided the root module too bootstrap?`
+                `Failed to initialize Resonance app root module ${rootModuleName}. Are you sure you provided the root module  bootstrap?`
             );
         }
 
         this.appRef = appRef;
     }
 
-    private _initializeRoutes(modules?: Map<string, Module>) {
+    private _applicationRoutes: string[] = [];
+
+    private _resolveRoutes(modules?: Map<string, Module>) {
         this.router = new NcRouter(this.appRef.baseURL);
 
         (modules ?? this.appRef.imports).forEach((ncModule: Module) => {
-            ncModule.$onInit.next$.subscribe(() => {
-                ncModule.routes.forEach((route) => {
-                    this.router.initializeRoute(route);
-                });
-
-                if (Object.keys(ncModule.imports).length > 0) {
-                    this._initializeRoutes(ncModule.imports);
-                }
+            ncModule.routes.forEach((route) => {
+                this._applicationRoutes.push(route.name);
             });
+
+            if (Object.keys(ncModule.imports).length > 0) {
+                this._resolveRoutes(ncModule.imports);
+            }
         });
     }
 
@@ -88,7 +89,22 @@ export class Resonance {
                 observer.complete();
             };
 
-            this.router.appExpress.get('/api');
+            this.router.initializeRoutes(this._applicationRoutes);
+
+            this.router.appExpress.get(
+                '/api',
+                // @ts-ignore
+                (req: Request, res: Response) => {
+                    res.status(200).write(
+                        JSON.stringify({
+                            welcome: 'to Jurassic Park.',
+                            i_mean: 'Resonance.',
+                            welcome_to: 'Resonance.',
+                        })
+                    );
+                    res.end();
+                }
+            );
 
             const server = this._config.credentials
                 ? createSecureServer(this.router.appExpress)

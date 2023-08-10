@@ -15,7 +15,7 @@ export class DogService {
         return this._databaseService.selectAll().pipe(
             filter((dog) => {
                 if (isNonNullable(query)) {
-                    if (query.age) {
+                    if (isNonNullable(query.age)) {
                         return dog.Age === query.age;
                     }
                 }

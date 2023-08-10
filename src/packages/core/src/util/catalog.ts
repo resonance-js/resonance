@@ -14,7 +14,7 @@ export class Catalog<K, V> extends Map<K, V> {
         return this;
     }
 
-    public setIfNonNullable(key: K, value: V | null) {
+    public setIfNonNullable(key: K, value: V | null | undefined) {
         if (isNonNullable(value)) this.set(key, value);
         return this;
     }

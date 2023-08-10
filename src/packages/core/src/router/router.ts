@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { Route } from '../di/route';
+import { Route, RouteCatalog, SupportedHttpMethod } from '../di/route';
 import {
     catchError,
     filter,
@@ -16,70 +16,71 @@ import { deepCopy, isNonNullable } from '../../../cxjs';
 
 const console = new NcLogger('RoutesMapper');
 
+export function buildPath(routePath: string[], path: string) {
+    const _path =
+        '/' +
+        [...routePath, path].filter((segment) => segment.length > 0).join('/');
+
+    return _path;
+}
+
 export class NcRouter {
     public appExpress = express();
 
     constructor(public baseURL: string = 'api') {}
 
-    public initializeRoute(route: Route, moduleBaseURL?: string) {
-        if (moduleBaseURL) route.path.unshift(moduleBaseURL);
-        route.path.unshift(this.baseURL);
-
-        route.onInit$.subscribe(() => {
-            for (const fnName of route.fnsCatalog.keysArr) {
-                route.fnsCatalog.getThen(fnName, (val) => {
-                    this.appExpress[val.httpMethod](
-                        this._buildPath(
+    public initializeRoutes(applicationRoutes: string[]) {
+        applicationRoutes.forEach((routeName) => {
+            RouteCatalog.getThen(routeName, (route) => {
+                for (const fnName of route.fnsCatalog.keysArr) {
+                    route.fnsCatalog.getThen(fnName, (val) => {
+                        const path = buildPath(
+                            [this.baseURL, ...route.path],
+                            val.path
+                        );
+                        this._createEndpoint(
                             route,
-                            fnName,
-                            val.path,
-                            val.httpMethod
-                        ),
-                        (req: Request, res: Response) => {
-                            this._handleResponse(
-                                route,
-                                fnName,
-                                route.reference.prototype.mapping[fnName]
-                                    ?.param ?? [],
-                                route.reference.prototype.mapping[fnName]
-                                    ?.query ?? [],
-                                req,
-                                res
-                            );
-                        }
-                    );
-                });
-            }
+                            val.httpMethod,
+                            path,
+                            fnName
+                        );
+                    });
+                }
+            });
         });
     }
 
-    private _buildPath(
+    private _createEndpoint(
         route: Route,
-        fnName: string,
+        httpMethod: SupportedHttpMethod,
         path: string,
-        httpMethodName: string
+        fnName: string
     ) {
-        const _path =
-            '/' +
-            [...route.path, path]
-                .filter((segment) => segment.length > 0)
-                .join('/');
+        this.appExpress[httpMethod](path, (req: Request, res: Response) => {
+            this.handleResponse(
+                route,
+                fnName,
+                route.reference.prototype.mapping[fnName]?.param ?? [],
+                route.reference.prototype.mapping[fnName]?.query ?? [],
+                req,
+                res
+            );
+        });
 
         console.log(
             [
                 yellow('[Mapped]'),
-                green(httpMethodName.toUpperCase()),
-                cyan(_path),
+                green(httpMethod.toUpperCase()),
+                cyan(path),
                 gray('=>'),
                 cyan(`${fnName}`),
                 gray(`@`),
                 cyan(route.name),
             ].join(' ')
         );
-        return _path;
     }
 
-    private _handleResponse(
+    public handleResponse(
         route: Route,
         fnName: string,
         decoratedParams: HttpArgument[],

@@ -60,9 +60,12 @@ export const getConstructorParameters = (target: any) => {
 };
 
 export const getFunctionParameters = (target: any, key: string | symbol) =>
-    Reflect.getMetadata('design:paramtypes', target, key).map((val: any) =>
-        (val.toString() as string).split(' ')[1].replace('()', '').toLowerCase()
-    );
+    Reflect.getMetadata('design:paramtypes', target, key).map((val: any) => {
+        return (val.toString() as string)
+            .split(' ')[1]
+            .replace('()', '')
+            .toLowerCase();
+    });
 
 /**
  * Extracts injected dependencies from a class.
