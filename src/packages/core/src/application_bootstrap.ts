@@ -12,14 +12,14 @@ import {
     $routesInitialized,
     $serverInitialized,
 } from './application_lifecycle';
-import { green } from './log';
+import { NcLogger, green } from './log';
 import { getClassName } from './util';
 import { NcRouter } from './router/router';
 import { Module, ModuleCatalog } from './di/module';
 import { module_ref } from './di';
 import { Request, Response } from 'express';
 
-// const console = new NcLogger('ResonanceApp');
+const console = new NcLogger('ResonanceApp');
 
 export class Resonance {
     public appRef!: Module;
