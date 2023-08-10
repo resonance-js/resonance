@@ -7,7 +7,7 @@ export class DogRoutes {
 
     @Get()
     public getAllDogs(
-        @Query('age')
+        @Query('age', false)
         age: number
     ) {
         return this._dogsService.queryDogs({

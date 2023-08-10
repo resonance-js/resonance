@@ -12,6 +12,7 @@ export class DogService {
     }
 
     public queryDogs(query?: { age?: number }) {
+        console.log(query);
         return this._databaseService.selectAll().pipe(
             filter((dog) => {
                 if (isNonNullable(query)) {

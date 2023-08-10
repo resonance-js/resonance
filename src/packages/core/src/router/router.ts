@@ -218,7 +218,8 @@ export class NcRouter {
             case 'array':
                 return param.split(',');
             case 'number':
-                return parseInt(param);
+                const parsed = parseInt(param);
+                return isNaN(parsed) ? null : parsed;
             case 'boolean':
                 return param === 'true';
             case 'object':
