@@ -1,9 +1,9 @@
-import { NcModule } from '@resonance/core';
+import { NgModule } from '@resonance/core';
 import { BreedsModule } from './breeds/breeds.module';
 import { DogModule } from './dogs/dogs.module';
 import { AuthModule } from './auth/auth.module';
 
-@NcModule({
+@NgModule({
     baseURL: 'api',
     imports: [BreedsModule, DogModule, AuthModule],
 })

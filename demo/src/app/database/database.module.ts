@@ -1,8 +1,8 @@
-import { NcModule } from '@resonance/core';
+import { NgModule } from '@resonance/core';
 import { DatabaseService } from './database.service';
 
-@NcModule({
-    declarations: [DatabaseService],
+@NgModule({
+    providers: [DatabaseService],
     exports: [DatabaseService],
 })
 export class DatabaseModule {}

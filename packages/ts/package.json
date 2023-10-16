@@ -1,0 +1,20 @@
+{
+  "name": "@resonancejs/ts",
+  "version": "0.4.9",
+  "description": "A collection of functions that improve code concision and readability.",
+  "author": "Alexander Porrello",
+  "license": "MIT",
+  "main": "dist/public-api.js",
+  "scripts": {
+    "build": "npx tsc",
+    "watch": "npx tsc --watch",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

@@ -2,6 +2,7 @@ import { Injectable } from '@resonance/core';
 import { isNonNullable } from '@resonance/cxjs';
 import { DatabaseService } from '../database/database.service';
 import { filter } from 'rxjs';
+import { Controller } from '@nestjs/common';
 
 @Injectable()
 export class DogService {
@@ -11,6 +12,16 @@ export class DogService {
         return this._databaseService.selectAll();
     }
 
+    @Controller({
+        method: 'queryDogs',
+        type: 'GET',
+        queries: {
+            age: {
+                type: 'number',
+                optional: true,
+            },
+        },
+    })
     public queryDogs(query?: { age?: number }) {
         console.log(query);
         return this._databaseService.selectAll().pipe(

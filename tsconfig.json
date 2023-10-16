@@ -37,6 +37,7 @@
         "node_modules",
         "**/dist",
         "**/*.spec.ts",
-        "**/webpack.config.ts"
+        "**/webpack.config.ts",
+        "**/*.d.ts"
     ]
 }

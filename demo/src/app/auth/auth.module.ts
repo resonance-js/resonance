@@ -1,8 +1,8 @@
-import { NcModule } from '@resonance/core';
+import { NgModule } from '@resonance/core';
 import { AuthenticationRoutes } from './auth.routes';
 import { DatabaseModule } from '../database/database.module';
 
-@NcModule({
+@NgModule({
     routes: [AuthenticationRoutes],
     imports: [DatabaseModule],
 })

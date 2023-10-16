@@ -1,0 +1,30 @@
+{
+  "name": "@resonance/core",
+  "version": "0.0.1",
+  "description": "Resonance - the core framework",
+  "author": "resonance",
+  "license": "MIT",
+  "main": "index",
+  "scripts": {
+    "build": "npx webpack"
+  },
+  "engines": {
+    "node": "^16.14.0 || >=18.10.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "rxjs": "",
+    "yaml": "^2.3.1"
+  },
+  "devDependencies": {
+    "typescript": "5.1.6"
+  },
+  "peerDependencies": {
+    "rxjs": "^6.5.3 || ^7.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/resonancejs/resonance.git",
+    "directory": "packages/core"
+  }
+}

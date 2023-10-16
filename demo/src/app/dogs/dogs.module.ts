@@ -1,11 +1,11 @@
-import { NcModule } from '@resonance/core';
+import { NgModule } from '@resonance/core';
 import { DogService } from './dogs.service';
 import { DogRoutes } from './dogs.routes';
 import { DatabaseModule } from '../database/database.module';
 
-@NcModule({
+@NgModule({
     baseURL: 'dog',
-    declarations: [DogService],
+    providers: [DogService],
     exports: [DogService],
     routes: [DogRoutes],
     imports: [DatabaseModule],

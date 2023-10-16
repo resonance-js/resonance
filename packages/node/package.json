@@ -1,0 +1,31 @@
+{
+  "name": "@resonancejs/node",
+  "version": "18.16.0",
+  "description": "Provides RxJS wrappers for Node.js.",
+  "main": "dist/public-api.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rxify/node.git"
+  },
+  "keywords": [
+    "node",
+    "rxjs"
+  ],
+  "author": "Alexander Porrello <alexporrello@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/rxify/node/issues"
+  },
+  "homepage": "https://github.com/rxify/node#readme",
+  "devDependencies": {
+    "@types/node": "^18.16.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "node": "^18.16.0",
+    "yaml": "^2.3.2"
+  }
+}
